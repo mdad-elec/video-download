@@ -129,3 +129,12 @@
 2025-09-22 08:59:33,270 - video_downloader - INFO - Download scheduler initialized and started
 2025-09-22 08:59:53,855 - video_downloader - INFO - Login attempt for username: testuser
 2025-09-22 08:59:54,125 - video_downloader - INFO - Successful login for user: testuser
+2025-09-22 09:07:53,425 - video_downloader - INFO - Registration attempt for username: testuser
+2025-09-22 09:07:53,429 - video_downloader - WARNING - Invalid registration input: Username already exists
+2025-09-22 09:07:59,947 - video_downloader - INFO - Registration attempt for username: newuser123
+2025-09-22 09:08:00,237 - video_downloader - INFO - Successfully registered user: newuser123
+2025-09-22 09:08:29,551 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 09:08:29,552 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 09:08:29,552 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 09:09:57,660 - video_downloader - INFO - Download scheduler started
+2025-09-22 09:09:57,661 - video_downloader - INFO - Download scheduler initialized and started

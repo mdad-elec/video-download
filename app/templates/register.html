@@ -104,19 +104,15 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     registerText.textContent = 'Creating Account...';
     registerSpinner.style.display = 'inline-block';
     
-    const data = {
-        username: username,
-        email: email,
-        password: password
-    };
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('email', email);
+    formData.append('password', password);
     
     try {
         const response = await fetch('/register', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
+            body: formData
         });
         
         const result = await response.json();
