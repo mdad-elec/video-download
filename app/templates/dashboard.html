@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Video Downloader</h1>
+            <div class="user-info">
+                <span id="username"></span>
+                <button onclick="logout()">Logout</button>
+            </div>
+        </header>
+        
+        <main>
+            <div class="download-form">
+                <h2>Download Video</h2>
+                
+                <div class="form-group">
+                    <label>Platform:</label>
+                    <select id="platform">
+                        <option value="youtube">YouTube</option>
+                        <option value="tiktok">TikTok</option>
+                        <option value="facebook">Facebook</option>
+                        <option value="twitter">Twitter/X</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Video URL:</label>
+                    <input type="url" id="videoUrl" placeholder="Paste video URL here">
+                    <button onclick="getVideoInfo()">Get Info</button>
+                </div>
+                
+                <div id="videoInfo" style="display:none;">
+                    <h3>Video Information</h3>
+                    <div id="videoDetails"></div>
+                    
+                    <div class="form-group">
+                        <label>Format:</label>
+                        <select id="format"></select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Trim Video (Optional):</label>
+                        <div class="trim-controls">
+                            <input type="number" id="startTime" placeholder="Start (seconds)" min="0">
+                            <input type="number" id="endTime" placeholder="End (seconds)" min="0">
+                        </div>
+                    </div>
+                    
+                    <button onclick="downloadVideo()" class="download-btn">Download Video</button>
+                </div>
+                
+                <div id="progress" style="display:none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <p id="progressText">Processing...</p>
+                </div>
+            </div>
+            
+            <div class="history">
+                <h3>Recent Downloads</h3>
+                <div id="downloadHistory"></div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+</body>
+</html>

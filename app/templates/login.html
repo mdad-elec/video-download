@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Video Downloader{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-box">
+        <h1>Video Downloader</h1>
+        <h2>Login to Your Account</h2>
+        
+        <div id="error-message" class="error" style="display:none;"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn-primary">Login</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Don't have an account? <a href="/register">Register here</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('username', document.getElementById('username').value);
+    formData.append('password', document.getElementById('password').value);
+    
+    try {
+        const response = await fetch('/token', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('access_token', data.access_token);
+            window.location.href = '/dashboard';
+        } else {
+            const error = await response.json();
+            document.getElementById('error-message').textContent = error.detail || 'Login failed';
+            document.getElementById('error-message').style.display = 'block';
+        }
+    } catch (error) {
+        document.getElementById('error-message').textContent = 'Network error. Please try again.';
+        document.getElementById('error-message').style.display = 'block';
+    }
+});
+</script>
+{% endblock %}
