@@ -2,26 +2,36 @@
 
 {% block title %}Login - Video Downloader{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="/static/css/modern.css">
+{% endblock %}
+
 {% block content %}
 <div class="auth-container">
     <div class="auth-box">
-        <h1>Video Downloader</h1>
-        <h2>Login to Your Account</h2>
+        <h1>🎬 Video Downloader</h1>
+        <h2>Welcome Back!</h2>
+        <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2rem;">Sign in to your account to continue downloading videos</p>
         
         <div id="error-message" class="error" style="display:none;"></div>
         
         <form id="login-form">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" required autofocus>
+                <input type="text" id="username" name="username" required 
+                       placeholder="Enter your username" autofocus>
             </div>
             
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required 
+                       placeholder="Enter your password">
             </div>
             
-            <button type="submit" class="btn-primary">Login</button>
+            <button type="submit" class="btn-primary" id="login-btn">
+                <span id="login-text">Login</span>
+                <span id="login-spinner" class="loading" style="display: none;"></span>
+            </button>
         </form>
         
         <div class="auth-footer">
@@ -36,28 +46,108 @@
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const formData = new FormData();
-    formData.append('username', document.getElementById('username').value);
-    formData.append('password', document.getElementById('password').value);
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('error-message');
+    const loginBtn = document.getElementById('login-btn');
+    const loginText = document.getElementById('login-text');
+    const loginSpinner = document.getElementById('login-spinner');
+    
+    // Reset error message
+    errorDiv.style.display = 'none';
+    
+    // Basic validation
+    if (!username) {
+        showError('Please enter your username');
+        return;
+    }
+    
+    if (!password) {
+        showError('Please enter your password');
+        return;
+    }
+    
+    // Show loading state
+    loginBtn.disabled = true;
+    loginText.textContent = 'Signing in...';
+    loginSpinner.style.display = 'inline-block';
     
     try {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+        
         const response = await fetch('/token', {
             method: 'POST',
             body: formData
         });
         
+        const data = await response.json();
+        
         if (response.ok) {
-            const data = await response.json();
             localStorage.setItem('access_token', data.access_token);
             window.location.href = '/dashboard';
         } else {
-            const error = await response.json();
-            document.getElementById('error-message').textContent = error.detail || 'Login failed';
-            document.getElementById('error-message').style.display = 'block';
+            showError(data.detail || 'Login failed');
         }
     } catch (error) {
-        document.getElementById('error-message').textContent = 'Network error. Please try again.';
-        document.getElementById('error-message').style.display = 'block';
+        showError('Network error. Please check your connection and try again.');
+    } finally {
+        // Reset button state
+        loginBtn.disabled = false;
+        loginText.textContent = 'Login';
+        loginSpinner.style.display = 'none';
+    }
+});
+
+function showError(message) {
+    const errorDiv = document.getElementById('error-message');
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        errorDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Add input validation feedback
+document.getElementById('username').addEventListener('input', function() {
+    if (this.value.trim()) {
+        this.style.borderColor = 'var(--primary)';
+    } else {
+        this.style.borderColor = 'var(--border)';
+    }
+});
+
+document.getElementById('password').addEventListener('input', function() {
+    if (this.value) {
+        this.style.borderColor = 'var(--primary)';
+    } else {
+        this.style.borderColor = 'var(--border)';
+    }
+});
+
+// Check for existing token on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+        // Verify token is still valid by making a test request
+        fetch('/api/user/sessions', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                localStorage.removeItem('access_token');
+            }
+        })
+        .catch(() => {
+            localStorage.removeItem('access_token');
+        });
     }
 });
 </script>

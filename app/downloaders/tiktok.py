@@ -46,7 +46,7 @@ class TikTokDownloader(BaseDownloader):
         
         ydl_opts = {
             'format': format_id,
-            'outtmpl': str(output_path.with_suffix('')),
+            'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
             'quiet': True,
             'no_warnings': True,
             # TikTok specific options
@@ -60,14 +60,15 @@ class TikTokDownloader(BaseDownloader):
         if start_time is not None or end_time is not None:
             # Download full video first
             temp_full = self.create_temp_file()
-            ydl_opts['outtmpl'] = str(Path(temp_full.name).with_suffix(''))
+            ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
             
             def download_video():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([url])
                     # Find actual file
+                    stem = Path(temp_full.name).stem
                     for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = Path(str(Path(temp_full.name).with_suffix('')) + ext)
+                        potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
                         if potential_file.exists():
                             return potential_file
                     return Path(temp_full.name)
@@ -91,8 +92,9 @@ class TikTokDownloader(BaseDownloader):
             def download_video():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     ydl.download([url])
+                    stem = output_path.stem
                     for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = Path(str(output_path.with_suffix('')) + ext)
+                        potential_file = output_path.parent / f"{stem}.{ext}"
                         if potential_file.exists():
                             return potential_file
                     return output_path

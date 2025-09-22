@@ -3,74 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Downloader Dashboard</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <title>Dashboard - Video Downloader</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Video Downloader</h1>
-            <div class="user-info">
-                <span id="username"></span>
-                <button onclick="logout()">Logout</button>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1 class="dashboard-title">🎬 Video Downloader</h1>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">Download videos from your favorite platforms</p>
             </div>
-        </header>
+            <div class="user-info">
+                <i class="fas fa-user-circle" style="font-size: 1.5rem; color: var(--primary);"></i>
+                <span id="username" style="font-weight: 600; margin: 0 0.5rem;"></span>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
         
-        <main>
+        <div class="download-section">
+            <h2 style="color: var(--primary); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fas fa-download"></i>
+                Download Video
+            </h2>
+            
             <div class="download-form">
-                <h2>Download Video</h2>
+                <input type="url" id="videoUrl" class="url-input" placeholder="Paste video URL here (YouTube, TikTok, Facebook, Twitter)">
                 
-                <div class="form-group">
-                    <label>Platform:</label>
-                    <select id="platform">
-                        <option value="youtube">YouTube</option>
-                        <option value="tiktok">TikTok</option>
-                        <option value="facebook">Facebook</option>
-                        <option value="twitter">Twitter/X</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Video URL:</label>
-                    <input type="url" id="videoUrl" placeholder="Paste video URL here">
-                    <button onclick="getVideoInfo()">Get Info</button>
-                </div>
-                
-                <div id="videoInfo" style="display:none;">
-                    <h3>Video Information</h3>
-                    <div id="videoDetails"></div>
-                    
-                    <div class="form-group">
-                        <label>Format:</label>
-                        <select id="format"></select>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Platform</label>
+                        <select id="platform" class="platform-select">
+                            <option value="youtube">📺 YouTube</option>
+                            <option value="tiktok">🎵 TikTok</option>
+                            <option value="facebook">📘 Facebook</option>
+                            <option value="twitter">🐦 Twitter/X</option>
+                        </select>
                     </div>
                     
-                    <div class="form-group">
-                        <label>Trim Video (Optional):</label>
-                        <div class="trim-controls">
-                            <input type="number" id="startTime" placeholder="Start (seconds)" min="0">
-                            <input type="number" id="endTime" placeholder="End (seconds)" min="0">
-                        </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Quality</label>
+                        <select id="format" class="format-select">
+                            <option value="best">🎬 Best Quality</option>
+                            <option value="18">📱 360p</option>
+                            <option value="22">📺 720p</option>
+                            <option value="137">🖥️ 1080p</option>
+                        </select>
                     </div>
                     
-                    <button onclick="downloadVideo()" class="download-btn">Download Video</button>
+                    <button id="getInfoBtn" class="btn-secondary" onclick="getVideoInfo()">
+                        <i class="fas fa-info-circle"></i> Get Info
+                    </button>
                 </div>
                 
-                <div id="progress" style="display:none;">
-                    <div class="progress-bar">
-                        <div class="progress-fill"></div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Start Time (seconds)</label>
+                        <input type="number" id="startTime" placeholder="0" min="0" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;">
                     </div>
-                    <p id="progressText">Processing...</p>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">End Time (seconds)</label>
+                        <input type="number" id="endTime" placeholder="Auto" min="0" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;">
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 1.5rem;">
+                    <button id="downloadBtn" class="download-btn" onclick="downloadVideo()" disabled>
+                        <i class="fas fa-download"></i>
+                        <span id="downloadBtnText">Get Video Info First</span>
+                    </button>
                 </div>
             </div>
             
-            <div class="history">
-                <h3>Recent Downloads</h3>
-                <div id="downloadHistory"></div>
+            <!-- Video Preview -->
+            <div id="videoPreview" class="video-preview">
+                <div class="preview-header">
+                    <img id="videoThumbnail" class="preview-thumbnail" src="" alt="Video thumbnail">
+                    <div class="preview-info">
+                        <h3 id="videoTitle">Video Title</h3>
+                        <p id="videoDuration">Duration: --:--</p>
+                        <p id="videoPlatform">Platform: --</p>
+                    </div>
+                </div>
+                <div class="preview-actions">
+                    <button class="btn-primary" onclick="downloadVideo()">
+                        <i class="fas fa-download"></i> Download Now
+                    </button>
+                    <button class="btn-secondary" onclick="clearVideo()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
             </div>
-        </main>
+            
+            <!-- Progress Bar -->
+            <div id="progressContainer" class="progress-container">
+                <h3 style="color: var(--primary); margin-bottom: 1rem;">
+                    <i class="fas fa-download"></i> Downloading...
+                </h3>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+                <div id="progressText" class="progress-text">Preparing download...</div>
+            </div>
+        </div>
+        
+        <div class="download-history">
+            <div class="history-header">
+                <h2 class="history-title">
+                    <i class="fas fa-history"></i>
+                    Download History
+                </h2>
+                <button class="btn-secondary" onclick="refreshHistory()">
+                    <i class="fas fa-refresh"></i> Refresh
+                </button>
+            </div>
+            <div id="downloadHistory" class="history-list">
+                <div class="empty-state">
+                    <i class="fas fa-download"></i>
+                    <p>No downloads yet. Start by downloading your first video!</p>
+                </div>
+            </div>
+        </div>
     </div>
     
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/dashboard.js"></script>
 </body>
 </html>

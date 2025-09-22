@@ -1,0 +1,74 @@
+2025-09-22 07:33:33,507 - video_downloader - ERROR - Registration error for ab: 
+2025-09-22 07:34:07,245 - video_downloader - ERROR - Registration error for testuser2: 
+2025-09-22 07:34:21,601 - video_downloader - INFO - Registration attempt for username: testuser2
+2025-09-22 07:34:21,882 - video_downloader - INFO - Successfully registered user: testuser2
+2025-09-22 07:34:41,012 - video_downloader - INFO - Login attempt for username: testuser2
+2025-09-22 07:34:41,263 - video_downloader - INFO - Successful login for user: testuser2
+2025-09-22 07:34:48,596 - video_downloader - INFO - User testuser2 requesting video info for invalid-url on youtube
+2025-09-22 07:34:50,756 - video_downloader - ERROR - Unexpected error getting video info: ERROR: [youtube] invalid-url: Video unavailable
+2025-09-22 07:34:59,470 - video_downloader - ERROR - Unexpected error getting video info: 
+2025-09-22 07:35:03,489 - video_downloader - ERROR - Unexpected error getting video info: 
+2025-09-22 07:35:22,475 - video_downloader - INFO - User testuser2 requesting video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ on youtube
+2025-09-22 07:35:26,219 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2025-09-22 07:55:02,473 - video_downloader - INFO - WebSocket connected: f6d849ea-fdfb-41a2-a148-693c9e233a7c for user user_anonymou
+2025-09-22 07:55:42,480 - video_downloader - INFO - WebSocket disconnected: f6d849ea-fdfb-41a2-a148-693c9e233a7c
+2025-09-22 07:55:49,997 - video_downloader - INFO - Registration attempt for username: testuser
+2025-09-22 07:55:49,998 - video_downloader - WARNING - Registration failed - username already exists: testuser
+2025-09-22 07:55:49,998 - video_downloader - ERROR - Registration error for testuser: 
+2025-09-22 07:55:51,827 - video_downloader - INFO - Registration attempt for username: testuser2
+2025-09-22 07:55:51,827 - video_downloader - WARNING - Registration failed - username already exists: testuser2
+2025-09-22 07:55:51,827 - video_downloader - ERROR - Registration error for testuser2: 
+2025-09-22 07:56:24,658 - video_downloader - INFO - Registration attempt for username: testuser
+2025-09-22 07:56:24,659 - video_downloader - WARNING - Registration failed - username already exists: testuser
+2025-09-22 07:56:24,659 - video_downloader - ERROR - Registration error for testuser: 
+2025-09-22 07:58:06,467 - video_downloader - INFO - Login attempt for username: testuser
+2025-09-22 07:58:06,736 - video_downloader - INFO - Successful login for user: testuser
+2025-09-22 07:58:19,726 - video_downloader - INFO - User testuser requesting video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ on youtube
+2025-09-22 07:58:19,727 - video_downloader - INFO - Progress twitter: {'status': 'info', 'message': 'Fetching video information...', 'progress': 0}
+2025-09-22 07:58:24,084 - video_downloader - INFO - Progress twitter: {'status': 'info_complete', 'message': 'Video information retrieved', 'progress': 100}
+2025-09-22 07:58:24,085 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2025-09-22 07:58:34,587 - video_downloader - INFO - Added download task f8adcd51-3437-421a-8ccc-371686d31a26 for user testuser: https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2025-09-22 07:58:34,588 - video_downloader - INFO - Cancelled queued task f8adcd51-3437-421a-8ccc-371686d31a26
+2025-09-22 07:58:34,588 - video_downloader - INFO - Starting download queue processor
+2025-09-22 07:58:34,588 - video_downloader - INFO - Download queue processor stopped
+2025-09-22 08:00:37,611 - video_downloader - INFO - User testuser requesting video info for https://www.youtube.com/watch?v=jNQXAC9IVRw on youtube
+2025-09-22 08:00:37,612 - video_downloader - INFO - Progress twitter: {'status': 'info', 'message': 'Fetching video information...', 'progress': 0}
+2025-09-22 08:00:40,738 - video_downloader - INFO - Progress twitter: {'status': 'info_complete', 'message': 'Video information retrieved', 'progress': 100}
+2025-09-22 08:00:40,738 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=jNQXAC9IVRw
+2025-09-22 08:00:46,801 - video_downloader - INFO - User testuser downloading video from https://www.youtube.com/watch?v=jNQXAC9IVRw on youtube
+2025-09-22 08:00:49,958 - video_downloader - INFO - Successfully downloaded video to /tmp/video_downloads/tmpsy_ufdew.mp4
+2025-09-22 08:00:49,959 - video_downloader - INFO - Cleaned up temporary file: /tmp/video_downloads/tmpsy_ufdew.mp4
+2025-09-22 08:12:32,555 - video_downloader - INFO - User testuser downloading video from https://www.youtube.com/watch?v=jNQXAC9IVRw on youtube
+2025-09-22 08:12:36,133 - video_downloader - ERROR - Unexpected error downloading video: no running event loop
+2025-09-22 08:13:25,345 - video_downloader - INFO - User testuser requesting video info for https://www.tiktok.com/@tiktok/video/7325416394982494465 on tiktok
+2025-09-22 08:13:25,637 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch TikTok video info: ERROR: [TikTok] 7325416394982494465: Unable to extract webpage video data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+2025-09-22 08:13:48,751 - video_downloader - INFO - User testuser requesting video info for https://www.facebook.com/watch/?v=10156089733126729 on facebook
+2025-09-22 08:13:50,483 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch Facebook video info: ERROR: [facebook] 10156089733126729: Cannot parse data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+2025-09-22 08:14:06,708 - video_downloader - INFO - User testuser requesting video info for https://twitter.com/X/status/1729463873991614664 on twitter
+2025-09-22 08:14:07,643 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch Twitter/X video info: ERROR: [twitter] 1729463873991614664: No video could be found in this tweet
+2025-09-22 08:16:37,493 - video_downloader - INFO - User testuser requesting video info for https://www.tiktok.com/@tiktok/video/7325416394982494465 on tiktok
+2025-09-22 08:16:38,398 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch TikTok video info: ERROR: [TikTok] 7325416394982494465: Your IP address is blocked from accessing this post
+2025-09-22 08:18:46,182 - video_downloader - INFO - User testuser requesting video info for https://www.youtube.com/watch?v=jNQXAC9IVRw on youtube
+2025-09-22 08:18:46,182 - video_downloader - INFO - Progress twitter: {'status': 'info', 'message': 'Fetching video information...', 'progress': 0}
+2025-09-22 08:18:49,557 - video_downloader - INFO - Progress twitter: {'status': 'info_complete', 'message': 'Video information retrieved', 'progress': 100}
+2025-09-22 08:18:49,557 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=jNQXAC9IVRw
+2025-09-22 08:19:28,334 - video_downloader - INFO - Added download task 1b0cf5ee-4000-4488-8be3-1a13728aded9 for user testuser: https://www.youtube.com/watch?v=jNQXAC9IVRw
+2025-09-22 08:19:28,335 - video_downloader - INFO - Starting download queue processor
+2025-09-22 08:19:28,335 - video_downloader - INFO - Starting download task 1b0cf5ee-4000-4488-8be3-1a13728aded9: https://www.youtube.com/watch?v=jNQXAC9IVRw
+2025-09-22 08:19:31,348 - video_downloader - WARNING - Cannot cancel active task 1b0cf5ee-4000-4488-8be3-1a13728aded9
+2025-09-22 08:19:31,367 - video_downloader - INFO - Download queue processor stopped
+2025-09-22 08:31:20,864 - video_downloader - INFO - User testuser requesting video info for https://www.facebook.com/watch/?v=10156089733126729 on facebook
+2025-09-22 08:31:25,840 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch Facebook video info after multiple attempts: ERROR: [facebook] 10156089733126729: Cannot parse data; please report this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U
+2025-09-22 08:31:25,844 - video_downloader - INFO - User testuser requesting video info for https://twitter.com/elonmusk/status/1729463873991614664 on twitter
+2025-09-22 08:31:27,478 - video_downloader - ERROR - Unexpected error getting video info: Could not fetch Twitter/X video info after multiple attempts: ERROR: [twitter] 1729463873991614664: No video could be found in this tweet
+2025-09-22 08:31:27,484 - video_downloader - INFO - User testuser requesting video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ on youtube
+2025-09-22 08:31:27,484 - video_downloader - INFO - Progress twitter: {'status': 'info', 'message': 'Fetching video information...', 'progress': 0}
+2025-09-22 08:31:31,475 - video_downloader - INFO - Progress twitter: {'status': 'info_complete', 'message': 'Video information retrieved', 'progress': 100}
+2025-09-22 08:31:31,476 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2025-09-22 08:40:24,735 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:40:24,736 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:40:47,790 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:40:47,790 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:40:47,791 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:40:48,541 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:40:48,541 - video_downloader - INFO - Download scheduler initialized and started

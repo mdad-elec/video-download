@@ -2,37 +2,58 @@
 
 {% block title %}Register - Video Downloader{% endblock %}
 
+{% block styles %}
+<link rel="stylesheet" href="/static/css/modern.css">
+{% endblock %}
+
 {% block content %}
 <div class="auth-container">
     <div class="auth-box">
-        <h1>Video Downloader</h1>
-        <h2>Create New Account</h2>
+        <h1>🎬 Video Downloader</h1>
+        <h2>Create Account</h2>
+        <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2rem;">Join us and start downloading amazing videos!</p>
         
         <div id="message" class="message" style="display:none;"></div>
         
         <form id="register-form">
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" required pattern="[a-zA-Z0-9_]{3,20}" 
+                <input type="text" id="username" name="username" required 
+                       placeholder="Choose a unique username" minlength="3" maxlength="20"
+                       pattern="[a-zA-Z0-9_]{3,20}" 
                        title="3-20 characters, letters, numbers, and underscores only">
+                <small style="color: var(--text-secondary); font-size: 0.8rem;">3-20 characters, letters, numbers, and underscores only</small>
             </div>
             
             <div class="form-group">
                 <label for="email">Email</label>
-                <input type="email" id="email" name="email" required>
+                <input type="email" id="email" name="email" required 
+                       placeholder="Enter your email address">
             </div>
             
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required minlength="8">
+                <input type="password" id="password" name="password" required 
+                       placeholder="Create a strong password" minlength="8">
+                <div class="password-strength">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strength-fill"></div>
+                    </div>
+                    <div class="strength-text" id="strength-text"></div>
+                </div>
+                <small style="color: var(--text-secondary); font-size: 0.8rem;">At least 8 characters long</small>
             </div>
             
             <div class="form-group">
                 <label for="confirm-password">Confirm Password</label>
-                <input type="password" id="confirm-password" name="confirm-password" required>
+                <input type="password" id="confirm-password" name="confirm-password" required 
+                       placeholder="Confirm your password">
             </div>
             
-            <button type="submit" class="btn-primary">Register</button>
+            <button type="submit" class="btn-primary" id="register-btn">
+                <span id="register-text">Create Account</span>
+                <span id="register-spinner" class="loading" style="display: none;"></span>
+            </button>
         </form>
         
         <div class="auth-footer">
@@ -47,20 +68,47 @@
 document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    const username = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
     const messageDiv = document.getElementById('message');
+    const registerBtn = document.getElementById('register-btn');
+    const registerText = document.getElementById('register-text');
+    const registerSpinner = document.getElementById('register-spinner');
     
-    if (password !== confirmPassword) {
-        messageDiv.textContent = 'Passwords do not match';
-        messageDiv.className = 'error';
-        messageDiv.style.display = 'block';
+    // Reset message
+    messageDiv.style.display = 'none';
+    
+    // Validation
+    if (!username || username.length < 3 || username.length > 20) {
+        showMessage('Username must be between 3 and 20 characters', 'error');
         return;
     }
     
+    if (!email || !isValidEmail(email)) {
+        showMessage('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    if (!password || password.length < 8) {
+        showMessage('Password must be at least 8 characters long', 'error');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        showMessage('Passwords do not match', 'error');
+        return;
+    }
+    
+    // Show loading state
+    registerBtn.disabled = true;
+    registerText.textContent = 'Creating Account...';
+    registerSpinner.style.display = 'inline-block';
+    
     const data = {
-        username: document.getElementById('username').value,
-        email: document.getElementById('email').value,
+        username: username,
+        email: email,
         password: password
     };
     
@@ -73,24 +121,108 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
             body: JSON.stringify(data)
         });
         
+        const result = await response.json();
+        
         if (response.ok) {
-            messageDiv.textContent = 'Registration successful! Redirecting to login...';
-            messageDiv.className = 'success';
-            messageDiv.style.display = 'block';
+            showMessage('Registration successful! Redirecting to login...', 'success');
             setTimeout(() => {
                 window.location.href = '/login';
             }, 2000);
         } else {
-            const error = await response.json();
-            messageDiv.textContent = error.detail || 'Registration failed';
-            messageDiv.className = 'error';
-            messageDiv.style.display = 'block';
+            showMessage(result.detail || 'Registration failed', 'error');
         }
     } catch (error) {
-        messageDiv.textContent = 'Network error. Please try again.';
-        messageDiv.className = 'error';
-        messageDiv.style.display = 'block';
+        showMessage('Network error. Please check your connection and try again.', 'error');
+    } finally {
+        // Reset button state
+        registerBtn.disabled = false;
+        registerText.textContent = 'Create Account';
+        registerSpinner.style.display = 'none';
     }
 });
+
+// Password strength checker
+document.getElementById('password').addEventListener('input', function() {
+    const password = this.value;
+    const strengthFill = document.getElementById('strength-fill');
+    const strengthText = document.getElementById('strength-text');
+    
+    if (!password) {
+        strengthFill.className = 'strength-fill';
+        strengthText.textContent = '';
+        return;
+    }
+    
+    const strength = calculatePasswordStrength(password);
+    
+    strengthFill.className = `strength-fill strength-${strength.level}`;
+    strengthText.textContent = strength.text;
+    strengthText.className = `strength-text strength-${strength.level}-text`;
+});
+
+// Input validation feedback
+document.getElementById('username').addEventListener('input', function() {
+    const value = this.value.trim();
+    if (value.length >= 3 && value.length <= 20) {
+        this.style.borderColor = 'var(--primary)';
+    } else {
+        this.style.borderColor = 'var(--border)';
+    }
+});
+
+document.getElementById('email').addEventListener('input', function() {
+    if (isValidEmail(this.value)) {
+        this.style.borderColor = 'var(--primary)';
+    } else {
+        this.style.borderColor = 'var(--border)';
+    }
+});
+
+document.getElementById('confirm-password').addEventListener('input', function() {
+    const password = document.getElementById('password').value;
+    if (this.value === password && this.value) {
+        this.style.borderColor = 'var(--primary)';
+    } else {
+        this.style.borderColor = 'var(--border)';
+    }
+});
+
+function showMessage(message, type) {
+    const messageDiv = document.getElementById('message');
+    messageDiv.textContent = message;
+    messageDiv.className = type;
+    messageDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        messageDiv.style.display = 'none';
+    }, 5000);
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function calculatePasswordStrength(password) {
+    let score = 0;
+    
+    // Length check
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    
+    // Character variety
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^a-zA-Z0-9]/.test(password)) score++;
+    
+    if (score <= 2) {
+        return { level: 'weak', text: 'Weak password' };
+    } else if (score <= 4) {
+        return { level: 'medium', text: 'Medium strength' };
+    } else {
+        return { level: 'strong', text: 'Strong password' };
+    }
+}
 </script>
 {% endblock %}

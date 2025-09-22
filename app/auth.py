@@ -1,19 +1,22 @@
 import json
-import hashlib
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict
+from passlib.context import CryptContext
 
 class SimpleAuthManager:
     """Simple file-based authentication manager"""
     
     def __init__(self, data_dir: Path = Path("./data")):
         self.data_dir = data_dir
-        self.data_dir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(exist_ok=True, parents=True)
         self.users_file = self.data_dir / "users.json"
         self.sessions_file = self.data_dir / "sessions.json"
         self.downloads_file = self.data_dir / "downloads.json"
+        
+        # Initialize bcrypt password context
+        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
         # Initialize files if they don't exist
         self._init_files()
@@ -39,8 +42,8 @@ class SimpleAuthManager:
             json.dump(data, f, indent=2, default=str)
     
     def hash_password(self, password: str) -> str:
-        """Hash password using SHA256"""
-        return hashlib.sha256(password.encode()).hexdigest()
+        """Hash password using bcrypt"""
+        return self.pwd_context.hash(password)
     
     def register_user(self, username: str, email: str, password: str) -> bool:
         """Register a new user"""
@@ -67,7 +70,7 @@ class SimpleAuthManager:
             return False
         
         user = users[username]
-        return user['password_hash'] == self.hash_password(password) and user['is_active']
+        return self.pwd_context.verify(password, user['password_hash']) and user['is_active']
     
     def create_token(self, username: str) -> str:
         """Create a session token"""
