@@ -39,6 +39,20 @@ class YouTubeDownloader(BaseDownloader):
         
         configs = []
         
+        # Configuration 0: Use cookie file (highest priority)
+        cookie_file_path = 'www.youtube.com_cookies.txt'
+        if os.path.exists(cookie_file_path):
+            configs.append({
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'format': 'best',
+                'cookiefile': cookie_file_path,
+                'nocheckcertificate': True,
+                'sleep_interval_requests': 1,
+                'sleep_interval': 1,
+            })
+        
         # Configuration 1: Basic with random user agent
         user_agent = random.choice(self.user_agents)
         configs.append({
@@ -102,9 +116,10 @@ class YouTubeDownloader(BaseDownloader):
         
         for i, ydl_opts in enumerate(configs):
             try:
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}/{len(configs)}'
                 self.emit_progress({
                     'status': 'info',
-                    'message': f'Trying configuration {i+1}/{len(configs)}...',
+                    'message': f'Trying {config_name}...',
                     'progress': 10
                 })
                 
@@ -132,16 +147,25 @@ class YouTubeDownloader(BaseDownloader):
                 
             except Exception as e:
                 last_error = e
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}'
+                
                 if "Sign in to confirm you're not a bot" in str(e):
-                    self.emit_progress({
-                        'status': 'warning',
-                        'message': f'Configuration {i+1} blocked by YouTube, trying next...',
-                        'progress': 20 + (i * 20)
-                    })
+                    if i == 0:  # Cookie authentication failed
+                        self.emit_progress({
+                            'status': 'warning',
+                            'message': 'Cookie authentication failed, trying fallback methods...',
+                            'progress': 20
+                        })
+                    else:
+                        self.emit_progress({
+                            'status': 'warning',
+                            'message': f'{config_name} blocked by YouTube, trying next...',
+                            'progress': 20 + (i * 20)
+                        })
                 else:
                     self.emit_progress({
                         'status': 'warning',
-                        'message': f'Configuration {i+1} failed: {str(e)}',
+                        'message': f'{config_name} failed: {str(e)}',
                         'progress': 20 + (i * 20)
                     })
                 
@@ -212,9 +236,10 @@ class YouTubeDownloader(BaseDownloader):
         
         for i, base_opts in enumerate(configs):
             try:
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}/{len(configs)}'
                 self.emit_progress({
                     'status': 'info',
-                    'message': f'Trying download configuration {i+1}/{len(configs)}...',
+                    'message': f'Trying {config_name}...',
                     'progress': 5
                 })
                 
@@ -296,16 +321,25 @@ class YouTubeDownloader(BaseDownloader):
                     
             except Exception as e:
                 last_error = e
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}'
+                
                 if "Sign in to confirm you're not a bot" in str(e):
-                    self.emit_progress({
-                        'status': 'warning',
-                        'message': f'Download configuration {i+1} blocked, trying next...',
-                        'progress': 10 + (i * 5)
-                    })
+                    if i == 0:  # Cookie authentication failed
+                        self.emit_progress({
+                            'status': 'warning',
+                            'message': 'Cookie authentication failed, trying fallback methods...',
+                            'progress': 10
+                        })
+                    else:
+                        self.emit_progress({
+                            'status': 'warning',
+                            'message': f'{config_name} blocked, trying next...',
+                            'progress': 10 + (i * 5)
+                        })
                 else:
                     self.emit_progress({
                         'status': 'warning',
-                        'message': f'Download configuration {i+1} failed: {str(e)}',
+                        'message': f'{config_name} failed: {str(e)}',
                         'progress': 10 + (i * 5)
                     })
                 
