@@ -40,8 +40,26 @@ class YouTubeDownloader(BaseDownloader):
         configs = []
         
         # Configuration 0: Use cookie file (highest priority)
-        cookie_file_path = 'www.youtube.com_cookies.txt'
-        if os.path.exists(cookie_file_path):
+        # Try multiple possible paths for the cookie file
+        app_dir = os.path.dirname(os.path.dirname(__file__))  # Go up to app directory
+        project_root = os.path.dirname(app_dir)  # Go up to project root
+        
+        possible_cookie_paths = [
+            'www.youtube.com_cookies.txt',
+            './www.youtube.com_cookies.txt',
+            '../www.youtube.com_cookies.txt',
+            os.path.join(project_root, 'www.youtube.com_cookies.txt'),
+            os.path.join(app_dir, 'www.youtube.com_cookies.txt'),
+            os.path.join(os.path.dirname(__file__), '..', 'www.youtube.com_cookies.txt'),
+        ]
+        
+        cookie_file_path = None
+        for path in possible_cookie_paths:
+            if os.path.exists(path):
+                cookie_file_path = path
+                break
+        
+        if cookie_file_path:
             configs.append({
                 'quiet': True,
                 'no_warnings': True,
