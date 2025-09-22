@@ -21,15 +21,48 @@ class YouTubeDownloader(BaseDownloader):
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'format': 'best',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
+            'nocheckcertificate': True,
+            'sleep_interval_requests': 1,
+            'sleep_interval': 1,
+            'extractor_retries': 3,
+            'file_access_retries': 3,
+            'fragment_retries': 3,
+            'retry_sleep_functions': {
+                'http': lambda n: min(n * 2, 10),
+                'fragment': lambda n: min(n * 2, 10),
+            },
         }
         
         loop = asyncio.get_event_loop()
         
         def extract_info():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                return ydl.extract_info(url, download=False)
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    return ydl.extract_info(url, download=False)
+            except Exception as e:
+                if "Sign in to confirm you're not a bot" in str(e):
+                    raise Exception("YouTube is requiring authentication. This is a known limitation - please try again later or use a different video.")
+                raise
         
-        info = await loop.run_in_executor(None, extract_info)
+        try:
+            info = await loop.run_in_executor(None, extract_info)
+        except Exception as e:
+            self.emit_progress({
+                'status': 'error',
+                'message': str(e),
+                'progress': 0
+            })
+            raise
         
         self.emit_progress({
             'status': 'info_complete',
@@ -100,6 +133,25 @@ class YouTubeDownloader(BaseDownloader):
             'no_warnings': True,
             'no_playlist': True,
             'progress_hooks': [progress_hook],
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'headers': {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            },
+            'nocheckcertificate': True,
+            'sleep_interval_requests': 1,
+            'sleep_interval': 1,
+            'extractor_retries': 3,
+            'file_access_retries': 3,
+            'fragment_retries': 3,
+            'retry_sleep_functions': {
+                'http': lambda n: min(n * 2, 10),
+                'fragment': lambda n: min(n * 2, 10),
+            },
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
