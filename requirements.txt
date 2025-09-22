@@ -6,7 +6,7 @@ python-multipart==0.0.6
 sqlalchemy==2.0.23
 # REMOVED: psycopg2-binary
 aiofiles==23.2.1
-yt-dlp==2024.1.1
+yt-dlp>=2024.4.9
 ffmpeg-python==0.2.0
 python-dotenv==1.0.0
 jinja2==3.1.2
