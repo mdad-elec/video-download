@@ -72,3 +72,60 @@
 2025-09-22 08:40:47,791 - video_downloader - INFO - Download scheduler stopped
 2025-09-22 08:40:48,541 - video_downloader - INFO - Download scheduler started
 2025-09-22 08:40:48,541 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:55:28,363 - video_downloader - INFO - Login attempt for username: testuser
+2025-09-22 08:55:28,634 - video_downloader - INFO - Successful login for user: testuser
+2025-09-22 08:56:03,998 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:56:03,998 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:56:03,998 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:56:04,786 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:56:04,786 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:56:42,092 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:56:42,092 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:56:42,093 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:56:42,852 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:56:42,852 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:57:11,965 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:57:11,965 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:11,965 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:12,651 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:57:12,651 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:57:24,279 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:57:24,279 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:24,279 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:24,933 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:57:24,933 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:57:35,861 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:57:35,861 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:35,861 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:36,546 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:57:36,546 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:57:56,770 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:57:56,771 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:56,771 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:57:57,464 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:57:57,464 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:58:19,001 - video_downloader - INFO - Registration attempt for username: testuser
+2025-09-22 08:58:19,008 - video_downloader - WARNING - Invalid registration input: Username already exists
+2025-09-22 08:58:19,010 - video_downloader - INFO - Login attempt for username: testuser
+2025-09-22 08:58:19,278 - video_downloader - INFO - Successful login for user: testuser
+2025-09-22 08:58:19,283 - video_downloader - INFO - User testuser requesting video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ on youtube
+2025-09-22 08:58:19,283 - video_downloader - INFO - Progress twitter: {'status': 'info', 'message': 'Fetching video information...', 'progress': 0}
+2025-09-22 08:58:23,827 - video_downloader - INFO - Progress twitter: {'status': 'info_complete', 'message': 'Video information retrieved', 'progress': 100}
+2025-09-22 08:58:23,828 - video_downloader - INFO - Successfully retrieved video info for https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2025-09-22 08:58:52,660 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:58:52,662 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:58:52,662 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:58:53,444 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:58:53,444 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:59:08,406 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:59:08,407 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:59:08,407 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:59:09,086 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:59:09,086 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:59:32,544 - video_downloader - INFO - Download scheduler stopping...
+2025-09-22 08:59:32,545 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:59:32,545 - video_downloader - INFO - Download scheduler stopped
+2025-09-22 08:59:33,270 - video_downloader - INFO - Download scheduler started
+2025-09-22 08:59:33,270 - video_downloader - INFO - Download scheduler initialized and started
+2025-09-22 08:59:53,855 - video_downloader - INFO - Login attempt for username: testuser
+2025-09-22 08:59:54,125 - video_downloader - INFO - Successful login for user: testuser

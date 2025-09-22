@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Response, 
 from fastapi.responses import StreamingResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import uuid
 import asyncio
@@ -24,6 +25,15 @@ from .api.websocket import send_progress_update, send_download_complete, send_do
 create_tables()
 
 app = FastAPI(title=settings.APP_NAME, version=settings.VERSION)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -71,16 +81,25 @@ def get_scheduler():
 @app.on_event("startup")
 async def startup_event():
     """Start background services"""
-    # Start cleanup service
-    asyncio.create_task(cleanup_service.start())
-    
-    # Initialize and start download scheduler
-    global scheduler
-    db = next(get_db_session())
-    auth_manager = DatabaseAuthManager(db)
-    scheduler = DownloadScheduler(db, auth_manager)
-    await scheduler.start()
-    logger.info("Download scheduler initialized and started")
+    try:
+        # Start cleanup service
+        asyncio.create_task(cleanup_service.start())
+        
+        # Initialize and start download scheduler
+        global scheduler
+        db_session = next(get_db_session())
+        try:
+            auth_manager = DatabaseAuthManager(db_session)
+            scheduler = DownloadScheduler(db_session, auth_manager)
+            await scheduler.start()
+            logger.info("Download scheduler initialized and started")
+        except Exception as e:
+            logger.error(f"Failed to initialize scheduler: {str(e)}")
+            # Continue without scheduler if initialization fails
+            scheduler = None
+    except Exception as e:
+        logger.error(f"Startup event error: {str(e)}")
+        # Continue startup even if some services fail
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -170,6 +189,8 @@ async def login(
     except ValueError as e:
         logger.warning(f"Invalid login input: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Login error for {username}: {str(e)}")
         raise HTTPException(status_code=500, detail="Login failed. Please try again.")
@@ -606,6 +627,9 @@ async def schedule_download(
     scheduler: DownloadScheduler = Depends(get_scheduler)
 ):
     """Schedule a download for future processing"""
+    if not scheduler:
+        raise HTTPException(status_code=503, detail="Download scheduler is not available")
+    
     try:
         data = await request.json()
         url = data.get('url')
@@ -653,6 +677,9 @@ async def cancel_scheduled_download(
     scheduler: DownloadScheduler = Depends(get_scheduler)
 ):
     """Cancel a scheduled download"""
+    if not scheduler:
+        raise HTTPException(status_code=503, detail="Download scheduler is not available")
+    
     try:
         logger.info(f"User {current_user} cancelling download {queue_id}")
         
@@ -675,6 +702,18 @@ async def get_scheduler_status(
     scheduler: DownloadScheduler = Depends(get_scheduler)
 ):
     """Get download scheduler status"""
+    if not scheduler:
+        return {
+            "total_in_queue": 0,
+            "currently_processing": 0,
+            "completed_today": 0,
+            "failed_today": 0,
+            "concurrent_downloads": 0,
+            "max_concurrent_downloads": 0,
+            "scheduler_running": False,
+            "scheduler_available": False
+        }
+    
     try:
         logger.info(f"User {current_user} requesting scheduler status")
         
@@ -699,6 +738,15 @@ async def get_scheduler_stats(
         user = auth_manager.get_user_by_username(current_user)
         if not user or not user.is_admin:
             raise HTTPException(status_code=403, detail="Admin access required")
+        
+        if not scheduler:
+            return {
+                "platform_stats": {},
+                "current_downloads": 0,
+                "max_concurrent_downloads": 0,
+                "scheduler_running": False,
+                "scheduler_available": False
+            }
         
         logger.info(f"Admin {current_user} requesting scheduler stats")
         
