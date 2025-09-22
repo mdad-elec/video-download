@@ -4,79 +4,159 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import tempfile
 import uuid
+import os
+import random
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
 
 class YouTubeDownloader(BaseDownloader):
     
+    def __init__(self):
+        super().__init__()
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+        ]
+    
+    def _get_ydl_configs(self, url: str):
+        """Generate multiple yt-dlp configurations to try"""
+        base_headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-us,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        }
+        
+        configs = []
+        
+        # Configuration 1: Basic with random user agent
+        user_agent = random.choice(self.user_agents)
+        configs.append({
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'format': 'best',
+            'user_agent': user_agent,
+            'headers': base_headers,
+            'nocheckcertificate': True,
+            'sleep_interval_requests': 2,
+            'sleep_interval': 2,
+            'extractor_retries': 2,
+            'file_access_retries': 2,
+            'fragment_retries': 2,
+        })
+        
+        # Configuration 2: With different format selection
+        configs.append({
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'format': 'best[height<=720]',  # Limit to 720p to avoid detection
+            'user_agent': random.choice(self.user_agents),
+            'headers': base_headers,
+            'nocheckcertificate': True,
+            'sleep_interval_requests': 3,
+            'sleep_interval': 3,
+            'extractor_retries': 1,
+            'file_access_retries': 1,
+            'fragment_retries': 1,
+        })
+        
+        # Configuration 3: Mobile user agent
+        mobile_ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+        configs.append({
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+            'format': 'best',
+            'user_agent': mobile_ua,
+            'headers': {**base_headers, 'User-Agent': mobile_ua},
+            'nocheckcertificate': True,
+            'sleep_interval_requests': 4,
+            'sleep_interval': 4,
+            'extractor_retries': 1,
+        })
+        
+        return configs
+    
     async def get_video_info(self, url: str) -> Dict[str, Any]:
-        """Get YouTube video metadata"""
+        """Get YouTube video metadata with multiple fallback strategies"""
         self.emit_progress({
             'status': 'info',
             'message': 'Fetching video information...',
             'progress': 0
         })
         
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'format': 'best',
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-            'nocheckcertificate': True,
-            'sleep_interval_requests': 1,
-            'sleep_interval': 1,
-            'extractor_retries': 3,
-            'file_access_retries': 3,
-            'fragment_retries': 3,
-            'retry_sleep_functions': {
-                'http': lambda n: min(n * 2, 10),
-                'fragment': lambda n: min(n * 2, 10),
-            },
-        }
+        configs = self._get_ydl_configs(url)
+        last_error = None
         
-        loop = asyncio.get_event_loop()
-        
-        def extract_info():
+        for i, ydl_opts in enumerate(configs):
             try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    return ydl.extract_info(url, download=False)
+                self.emit_progress({
+                    'status': 'info',
+                    'message': f'Trying configuration {i+1}/{len(configs)}...',
+                    'progress': 10
+                })
+                
+                loop = asyncio.get_event_loop()
+                
+                def extract_info():
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        return ydl.extract_info(url, download=False)
+                
+                info = await loop.run_in_executor(None, extract_info)
+                
+                self.emit_progress({
+                    'status': 'info_complete',
+                    'message': 'Video information retrieved',
+                    'progress': 100
+                })
+                
+                return {
+                    'title': info.get('title', 'Unknown'),
+                    'duration': info.get('duration', 0),
+                    'thumbnail': info.get('thumbnail', ''),
+                    'formats': self._get_available_formats(info),
+                    'platform': 'youtube'
+                }
+                
             except Exception as e:
+                last_error = e
                 if "Sign in to confirm you're not a bot" in str(e):
-                    raise Exception("YouTube is requiring authentication. This is a known limitation - please try again later or use a different video.")
-                raise
+                    self.emit_progress({
+                        'status': 'warning',
+                        'message': f'Configuration {i+1} blocked by YouTube, trying next...',
+                        'progress': 20 + (i * 20)
+                    })
+                else:
+                    self.emit_progress({
+                        'status': 'warning',
+                        'message': f'Configuration {i+1} failed: {str(e)}',
+                        'progress': 20 + (i * 20)
+                    })
+                
+                # Wait before trying next configuration
+                if i < len(configs) - 1:
+                    await asyncio.sleep(2)
         
-        try:
-            info = await loop.run_in_executor(None, extract_info)
-        except Exception as e:
-            self.emit_progress({
-                'status': 'error',
-                'message': str(e),
-                'progress': 0
-            })
-            raise
-        
+        # All configurations failed
+        error_msg = "YouTube is requiring authentication or all configurations failed. Please try again later or use a different video platform."
         self.emit_progress({
-            'status': 'info_complete',
-            'message': 'Video information retrieved',
-            'progress': 100
+            'status': 'error',
+            'message': error_msg,
+            'progress': 0
         })
-        
-        return {
-            'title': info.get('title', 'Unknown'),
-            'duration': info.get('duration', 0),
-            'thumbnail': info.get('thumbnail', ''),
-            'formats': self._get_available_formats(info),
-            'platform': 'youtube'
-        }
+        raise Exception(error_msg)
     
     async def download(self, url: str, format_id: str = 'best',
                        start_time: Optional[float] = None, 
@@ -126,37 +206,121 @@ class YouTubeDownloader(BaseDownloader):
                     'message': f'Download error: {d.get("error", "Unknown error")}'
                 })
         
-        ydl_opts = {
-            'format': self._get_format_string(format_id),
-            'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
-            'quiet': True,
-            'no_warnings': True,
-            'no_playlist': True,
-            'progress_hooks': [progress_hook],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-            },
-            'nocheckcertificate': True,
-            'sleep_interval_requests': 1,
-            'sleep_interval': 1,
-            'extractor_retries': 3,
-            'file_access_retries': 3,
-            'fragment_retries': 3,
-            'retry_sleep_functions': {
-                'http': lambda n: min(n * 2, 10),
-                'fragment': lambda n: min(n * 2, 10),
-            },
-            'postprocessors': [{
-                'key': 'FFmpegVideoConvertor',
-                'preferedformat': 'mp4',
-            }] if format_id != 'best' else []
-        }
+        # Use multiple configurations for download as well
+        configs = self._get_ydl_configs(url)
+        last_error = None
+        
+        for i, base_opts in enumerate(configs):
+            try:
+                self.emit_progress({
+                    'status': 'info',
+                    'message': f'Trying download configuration {i+1}/{len(configs)}...',
+                    'progress': 5
+                })
+                
+                ydl_opts = {
+                    **base_opts,
+                    'format': self._get_format_string(format_id),
+                    'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
+                    'no_playlist': True,
+                    'progress_hooks': [progress_hook],
+                    'postprocessors': [{
+                        'key': 'FFmpegVideoConvertor',
+                        'preferedformat': 'mp4',
+                    }] if format_id != 'best' else []
+                }
+                
+                # If trimming is needed, we'll post-process
+                if start_time is not None or end_time is not None:
+                    self.emit_progress({
+                        'status': 'trimming_prep',
+                        'message': 'Preparing for trimming...',
+                        'progress': 10
+                    })
+                    
+                    # Download full video first
+                    temp_full = self.create_temp_file()
+                    ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
+                    
+                    loop = asyncio.get_event_loop()
+                    
+                    def download_video():
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            ydl.download([url])
+                            # Find the actual downloaded file (yt-dlp may add extension)
+                            stem = Path(temp_full.name).stem
+                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
+                                if potential_file.exists():
+                                    return potential_file
+                            return Path(temp_full.name)
+                    
+                    downloaded_file = await loop.run_in_executor(None, download_video)
+                    
+                    # Trim the video
+                    self.emit_progress({
+                        'status': 'trimming',
+                        'message': 'Trimming video...',
+                        'progress': 80
+                    })
+                    
+                    processor = VideoProcessor()
+                    trimmed_path = await processor.trim_video(
+                        downloaded_file, 
+                        start_time, 
+                        end_time, 
+                        output_path
+                    )
+                    
+                    # Clean up temp file
+                    if downloaded_file.exists():
+                        downloaded_file.unlink()
+                    
+                    return trimmed_path
+                else:
+                    # Direct download
+                    loop = asyncio.get_event_loop()
+                    
+                    def download_video():
+                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                            ydl.download([url])
+                            # Find the actual downloaded file
+                            stem = output_path.stem
+                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                potential_file = output_path.parent / f"{stem}.{ext}"
+                                if potential_file.exists():
+                                    return potential_file
+                            return output_path
+                    
+                    return await loop.run_in_executor(None, download_video)
+                    
+            except Exception as e:
+                last_error = e
+                if "Sign in to confirm you're not a bot" in str(e):
+                    self.emit_progress({
+                        'status': 'warning',
+                        'message': f'Download configuration {i+1} blocked, trying next...',
+                        'progress': 10 + (i * 5)
+                    })
+                else:
+                    self.emit_progress({
+                        'status': 'warning',
+                        'message': f'Download configuration {i+1} failed: {str(e)}',
+                        'progress': 10 + (i * 5)
+                    })
+                
+                # Wait before trying next configuration
+                if i < len(configs) - 1:
+                    await asyncio.sleep(2)
+        
+        # All configurations failed
+        error_msg = "YouTube download failed due to authentication or network issues. Please try again later."
+        self.emit_progress({
+            'status': 'error',
+            'message': error_msg,
+            'progress': 0
+        })
+        raise Exception(error_msg)
         
         # If trimming is needed, we'll post-process
         if start_time is not None or end_time is not None:
