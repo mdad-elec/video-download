@@ -11,7 +11,7 @@ import aiofiles
 import json
 
 from .config import settings
-from .simple_auth import auth_manager
+from .auth import auth_manager
 from .downloaders import YouTubeDownloader, TikTokDownloader, FacebookDownloader, TwitterDownloader
 from .utils.cleanup import TempFileCleanup
 
