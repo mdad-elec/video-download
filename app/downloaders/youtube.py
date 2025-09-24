@@ -93,34 +93,57 @@ class YouTubeDownloader(BaseDownloader):
             'concurrent_fragment_downloads': 1,
             'noprogress': True,
             'cachedir': False,
+        }
+
+        extractor_fallback = {
             'extractor_args': {
                 'youtube': {
                     'player_client': ['android', 'ios'],
                 }
-            },
+            }
         }
 
-        def build_config(format_string: str, user_agent: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-            headers = {**base_headers, 'User-Agent': user_agent}
+        def build_config(format_string: str, user_agent: str, extra: Optional[Dict[str, Any]] = None,
+                         *, include_fallback_args: bool = True, set_headers: bool = True) -> Dict[str, Any]:
             cfg = dict(common_opts)
-            cfg.update({
-                'user_agent': user_agent,
-                'http_headers': headers,
-            })
+            if include_fallback_args:
+                cfg.update(extractor_fallback)
+
+            if set_headers:
+                headers = {**base_headers, 'User-Agent': user_agent}
+                cfg.update({
+                    'user_agent': user_agent,
+                    'http_headers': headers,
+                })
+
             if not for_info:
                 cfg['format'] = format_string
             else:
                 cfg['skip_download'] = True
+
             if extra:
                 cfg.update(extra)
+
             return cfg
 
         configs: List[Dict[str, Any]] = []
 
         if cookie_path:
-            configs.append(build_config('best', random.choice(self.user_agents), {
+            cookie_cfg = dict(common_opts)
+            if for_info:
+                cookie_cfg['skip_download'] = True
+            else:
+                cookie_cfg['format'] = 'best'
+            cookie_cfg.update({
                 'cookiefile': str(cookie_path),
-            }))
+                'cookiefile_out': None,
+                'nocheckcertificate': True,
+            })
+            # Use a stable desktop UA that matches typical cookie exports
+            cookie_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+            cookie_cfg['user_agent'] = cookie_user_agent
+            cookie_cfg['http_headers'] = {**base_headers, 'User-Agent': cookie_user_agent}
+            configs.append(cookie_cfg)
 
         configs.append(build_config('best', random.choice(self.user_agents)))
 
