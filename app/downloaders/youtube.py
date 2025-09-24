@@ -67,7 +67,7 @@ class YouTubeDownloader(BaseDownloader):
         logger.debug("No YouTube cookies file could be located; falling back to anonymous requests.")
         return None
     
-    def _get_ydl_configs(self, url: str, cookie_path: Optional[Path]) -> List[Dict[str, Any]]:
+    def _get_ydl_configs(self, cookie_path: Optional[Path], *, for_info: bool = False) -> List[Dict[str, Any]]:
         """Generate multiple yt-dlp configurations to try"""
         base_headers = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -104,10 +104,13 @@ class YouTubeDownloader(BaseDownloader):
             headers = {**base_headers, 'User-Agent': user_agent}
             cfg = dict(common_opts)
             cfg.update({
-                'format': format_string,
                 'user_agent': user_agent,
                 'http_headers': headers,
             })
+            if not for_info:
+                cfg['format'] = format_string
+            else:
+                cfg['skip_download'] = True
             if extra:
                 cfg.update(extra)
             return cfg
@@ -150,7 +153,7 @@ class YouTubeDownloader(BaseDownloader):
                 'progress': 5
             })
 
-        configs = self._get_ydl_configs(url, cookie_path)
+        configs = self._get_ydl_configs(cookie_path, for_info=True)
         config_count = len(configs)
         last_error = None
         
@@ -279,7 +282,7 @@ class YouTubeDownloader(BaseDownloader):
                 'progress': 5
             })
 
-        configs = self._get_ydl_configs(url, cookie_path)
+        configs = self._get_ydl_configs(cookie_path)
         config_count = len(configs)
         last_error = None
 
