@@ -301,10 +301,17 @@ async def download_video(
         
         # Set up progress callback for this user session
         user_id = f"user_{current_user}"
-        
+        loop = asyncio.get_running_loop()
+
         def progress_callback(progress_data):
-            asyncio.create_task(send_progress_update(user_id, progress_data))
-        
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    send_progress_update(user_id, progress_data),
+                    loop
+                )
+            except RuntimeError as exc:
+                logger.warning(f"Failed to dispatch progress update: {exc}")
+
         downloader.set_progress_callback(progress_callback)
         
         # Download video
