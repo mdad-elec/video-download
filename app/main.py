@@ -56,7 +56,9 @@ downloaders = {
 def setup_progress_callbacks():
     """Setup progress callbacks for all downloaders"""
     for platform, downloader in downloaders.items():
-        downloader.set_progress_callback(lambda data: logger.info(f"Progress {platform}: {data}"))
+        downloader.set_progress_callback(
+            lambda data, platform=platform: logger.info(f"Progress {platform}: {data}")
+        )
 
 setup_progress_callbacks()
 

@@ -1,13 +1,13 @@
 import yt_dlp
 import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any
-import tempfile
-import uuid
-import os
+from typing import Optional, Dict, Any, List
 import random
+
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
+from ..config import settings
+from ..utils.logger import logger
 
 class YouTubeDownloader(BaseDownloader):
     
@@ -20,105 +20,118 @@ class YouTubeDownloader(BaseDownloader):
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
         ]
+
+    def _locate_cookie_file(self) -> Optional[Path]:
+        """Try to locate a usable YouTube cookies file"""
+        module_dir = Path(__file__).resolve().parent
+        project_root = module_dir.parent.parent
+
+        candidates: List[Path] = []
+
+        if settings.YOUTUBE_COOKIES_FILE:
+            candidates.append(Path(settings.YOUTUBE_COOKIES_FILE))
+
+        relative_candidates = [
+            Path('www.youtube.com_cookies.txt'),
+            Path('./www.youtube.com_cookies.txt'),
+        ]
+
+        search_roots = [
+            Path.cwd(),
+            project_root,
+            module_dir,
+            Path.home(),
+            Path.home() / 'Downloads',
+        ]
+
+        for root in search_roots:
+            for rel in relative_candidates:
+                candidates.append((root / rel).expanduser())
+
+        seen: set[Path] = set()
+        for candidate in candidates:
+            expanded = candidate.expanduser()
+            try:
+                resolved = expanded.resolve(strict=False)
+            except Exception:
+                resolved = expanded
+
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+
+            if resolved.is_file():
+                logger.info(f"Using YouTube cookies file at {resolved}")
+                return resolved
+
+        logger.debug("No YouTube cookies file could be located; falling back to anonymous requests.")
+        return None
     
-    def _get_ydl_configs(self, url: str):
+    def _get_ydl_configs(self, url: str, cookie_path: Optional[Path]) -> List[Dict[str, Any]]:
         """Generate multiple yt-dlp configurations to try"""
         base_headers = {
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-us,en;q=0.5',
+            'Accept-Language': 'en-US,en;q=0.5',
             'Accept-Encoding': 'gzip, deflate',
             'DNT': '1',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
         }
-        
-        configs = []
-        
-        # Configuration 0: Use cookie file (highest priority)
-        # Try multiple possible paths for the cookie file
-        app_dir = os.path.dirname(os.path.dirname(__file__))  # Go up to app directory
-        project_root = os.path.dirname(app_dir)  # Go up to project root
-        
-        possible_cookie_paths = [
-            'www.youtube.com_cookies.txt',
-            './www.youtube.com_cookies.txt',
-            '../www.youtube.com_cookies.txt',
-            os.path.join(project_root, 'www.youtube.com_cookies.txt'),
-            os.path.join(app_dir, 'www.youtube.com_cookies.txt'),
-            os.path.join(os.path.dirname(__file__), '..', 'www.youtube.com_cookies.txt'),
-        ]
-        
-        cookie_file_path = None
-        for path in possible_cookie_paths:
-            if os.path.exists(path):
-                cookie_file_path = path
-                break
-        
-        if cookie_file_path:
-            configs.append({
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'format': 'best',
-                'cookiefile': cookie_file_path,
-                'nocheckcertificate': True,
-                'sleep_interval_requests': 1,
-                'sleep_interval': 1,
-            })
-        
-        # Configuration 1: Basic with random user agent
-        user_agent = random.choice(self.user_agents)
-        configs.append({
+
+        common_opts: Dict[str, Any] = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            'format': 'best',
-            'user_agent': user_agent,
-            'headers': base_headers,
             'nocheckcertificate': True,
-            'sleep_interval_requests': 2,
-            'sleep_interval': 2,
+            'sleep_interval_requests': 1,
+            'sleep_interval': 1,
+            'retries': 3,
             'extractor_retries': 2,
             'file_access_retries': 2,
             'fragment_retries': 2,
-        })
-        
-        # Configuration 2: With different format selection
-        configs.append({
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'format': 'best[height<=720]',  # Limit to 720p to avoid detection
-            'user_agent': random.choice(self.user_agents),
-            'headers': base_headers,
-            'nocheckcertificate': True,
+            'concurrent_fragment_downloads': 1,
+            'noprogress': True,
+            'cachedir': False,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
+            },
+        }
+
+        def build_config(format_string: str, user_agent: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            headers = {**base_headers, 'User-Agent': user_agent}
+            cfg = dict(common_opts)
+            cfg.update({
+                'format': format_string,
+                'user_agent': user_agent,
+                'http_headers': headers,
+            })
+            if extra:
+                cfg.update(extra)
+            return cfg
+
+        configs: List[Dict[str, Any]] = []
+
+        if cookie_path:
+            configs.append(build_config('best', random.choice(self.user_agents), {
+                'cookiefile': str(cookie_path),
+            }))
+
+        configs.append(build_config('best', random.choice(self.user_agents)))
+
+        configs.append(build_config('best[height<=720]/best', random.choice(self.user_agents), {
+            'sleep_interval_requests': 2,
+            'sleep_interval': 2,
+        }))
+
+        mobile_ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+        configs.append(build_config('best', mobile_ua, {
             'sleep_interval_requests': 3,
             'sleep_interval': 3,
-            'extractor_retries': 1,
-            'file_access_retries': 1,
-            'fragment_retries': 1,
-        })
-        
-        # Configuration 3: Mobile user agent
-        mobile_ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
-        configs.append({
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'format': 'best',
-            'user_agent': mobile_ua,
-            'headers': {**base_headers, 'User-Agent': mobile_ua},
-            'nocheckcertificate': True,
-            'sleep_interval_requests': 4,
-            'sleep_interval': 4,
-            'extractor_retries': 1,
-        })
-        
+        }))
+
         return configs
     
     async def get_video_info(self, url: str) -> Dict[str, Any]:
@@ -129,12 +142,21 @@ class YouTubeDownloader(BaseDownloader):
             'progress': 0
         })
         
-        configs = self._get_ydl_configs(url)
+        cookie_path = self._locate_cookie_file()
+        if not cookie_path:
+            self.emit_progress({
+                'status': 'warning',
+                'message': 'No YouTube cookies configured; continuing without authentication. Some videos may require login.',
+                'progress': 5
+            })
+
+        configs = self._get_ydl_configs(url, cookie_path)
+        config_count = len(configs)
         last_error = None
         
         for i, ydl_opts in enumerate(configs):
             try:
-                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}/{len(configs)}'
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}/{config_count}'
                 self.emit_progress({
                     'status': 'info',
                     'message': f'Trying {config_name}...',
@@ -249,12 +271,21 @@ class YouTubeDownloader(BaseDownloader):
                 })
         
         # Use multiple configurations for download as well
-        configs = self._get_ydl_configs(url)
+        cookie_path = self._locate_cookie_file()
+        if not cookie_path:
+            self.emit_progress({
+                'status': 'warning',
+                'message': 'No YouTube cookies configured; attempting download without authentication.',
+                'progress': 5
+            })
+
+        configs = self._get_ydl_configs(url, cookie_path)
+        config_count = len(configs)
         last_error = None
-        
+
         for i, base_opts in enumerate(configs):
             try:
-                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}/{len(configs)}'
+                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}/{config_count}'
                 self.emit_progress({
                     'status': 'info',
                     'message': f'Trying {config_name}...',
@@ -362,7 +393,7 @@ class YouTubeDownloader(BaseDownloader):
                     })
                 
                 # Wait before trying next configuration
-                if i < len(configs) - 1:
+                if i < config_count - 1:
                     await asyncio.sleep(2)
         
         # All configurations failed
@@ -373,83 +404,6 @@ class YouTubeDownloader(BaseDownloader):
             'progress': 0
         })
         raise Exception(error_msg)
-        
-        # If trimming is needed, we'll post-process
-        if start_time is not None or end_time is not None:
-            self.emit_progress({
-                'status': 'trimming_prep',
-                'message': 'Preparing for trimming...',
-                'progress': 0
-            })
-            
-            # Download full video first
-            temp_full = self.create_temp_file()
-            ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
-            
-            loop = asyncio.get_event_loop()
-            
-            def download_video():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-                    # Find the actual downloaded file (yt-dlp may add extension)
-                    stem = Path(temp_full.name).stem
-                    for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                        if potential_file.exists():
-                            return potential_file
-                    return Path(temp_full.name)
-            
-            downloaded_file = await loop.run_in_executor(None, download_video)
-            
-            # Trim the video
-            self.emit_progress({
-                'status': 'trimming',
-                'message': 'Trimming video...',
-                'progress': 80
-            })
-            
-            processor = VideoProcessor()
-            trimmed_path = await processor.trim_video(
-                downloaded_file, 
-                output_path,
-                start_time, 
-                end_time
-            )
-            
-            # Clean up full video immediately
-            asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
-            
-            self.emit_progress({
-                'status': 'complete',
-                'progress': 100,
-                'message': 'Download and trimming complete'
-            })
-            
-            return trimmed_path
-        else:
-            # Direct download without trimming
-            loop = asyncio.get_event_loop()
-            
-            def download_video():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-                    # Find the actual downloaded file
-                    stem = output_path.stem
-                    for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = output_path.parent / f"{stem}.{ext}"
-                        if potential_file.exists():
-                            return potential_file
-                    return output_path
-            
-            result = await loop.run_in_executor(None, download_video)
-            
-            self.emit_progress({
-                'status': 'complete',
-                'progress': 100,
-                'message': 'Download complete'
-            })
-            
-            return result
     
     def _get_available_formats(self, info: Dict) -> list:
         """Extract available formats with better filtering"""

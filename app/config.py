@@ -22,6 +22,10 @@ class Settings:
     # Temp directory
     TEMP_DIR = Path("/tmp/video_downloads")
     TEMP_DIR.mkdir(exist_ok=True)
+
+    # External integrations
+    _cookie_path = os.getenv("YOUTUBE_COOKIES_FILE")
+    YOUTUBE_COOKIES_FILE = Path(_cookie_path).expanduser() if _cookie_path else None
     
     # Download limits
     MAX_VIDEO_DURATION = 3600  # 1 hour

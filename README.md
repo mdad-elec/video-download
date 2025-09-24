@@ -171,10 +171,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES=1440
 TEMP_DIR=/tmp/video_downloader
 MAX_TEMP_FILE_AGE_SECONDS=3600
 
+# Downloader Configuration
+YOUTUBE_COOKIES_FILE=/absolute/path/to/www.youtube.com_cookies.txt
+
 # Scheduler Settings
 MAX_CONCURRENT_DOWNLOADS=3
 CLEANUP_INTERVAL_HOURS=1
 ```
+
+> ℹ️ **YouTube authentication**: Export your YouTube cookies in Netscape format (for example with the *Get cookies.txt* browser extension or `yt-dlp --cookies-from-browser`) and either place the file as `www.youtube.com_cookies.txt` in the project root or set `YOUTUBE_COOKIES_FILE` to its absolute path. Without a valid cookie jar YouTube may reject requests with “Sign in to confirm you're not a bot”.
 
 ### Scheduler Configuration
 
