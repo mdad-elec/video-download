@@ -1,2 +1,8 @@
 logs/
 video_downloader.db
+app/__pycache__/
+app/api/__pycache__/
+app/database/__pycache__/
+app/downloaders/__pycache__/
+app/utils/__pycache__/
+venv/
