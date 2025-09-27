@@ -94,10 +94,19 @@ class BaseDownloader(ABC):
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4', dir=self.temp_dir)
             temp_file.close()
             temp_path = Path(temp_file.name)
+            stem = temp_path.stem
+
+            # Remove the placeholder file so yt-dlp can create the real one
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
             
             # Update output template for this attempt
             attempt_opts = ydl_opts.copy()
-            attempt_opts['outtmpl'] = str(temp_path.parent / f"{temp_path.stem}.%(ext)s")
+            attempt_opts['outtmpl'] = str(temp_path.parent / f"{stem}.%(ext)s")
+            attempt_opts.setdefault('overwrites', True)
             
             try:
                 # Download with yt-dlp
@@ -108,7 +117,6 @@ class BaseDownloader(ABC):
                 await asyncio.sleep(2)  # Initial wait
                 
                 # Find the actual downloaded file
-                stem = temp_path.stem
                 downloaded_file = None
                 
                 # Check for various file extensions
