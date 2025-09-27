@@ -345,23 +345,54 @@ class YouTubeDownloader(BaseDownloader):
                     loop = asyncio.get_event_loop()
                     
                     def download_video():
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([url])
-                            # Find the actual downloaded file (yt-dlp may add extension)
-                            stem = Path(temp_full.name).stem
-                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                                potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    # Verify file has content
-                                    file_size = potential_file.stat().st_size
-                                    logger.info(f"Downloaded file size: {file_size} bytes")
-                                    if file_size > 0:
-                                        return potential_file
-                                    else:
-                                        logger.warning(f"Downloaded file is empty: {potential_file}")
-                            # If no file found or all are empty, return the original path
-                            logger.warning(f"No valid downloaded file found for stem: {stem}")
-                            return Path(temp_full.name)
+                        try:
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                # Add a progress hook to debug the download process
+                                def debug_hook(d):
+                                    if d['status'] == 'error':
+                                        logger.error(f"Download error: {d.get('error', 'Unknown error')}")
+                                    elif d['status'] == 'finished':
+                                        logger.info(f"Download finished: {d.get('filename')}")
+                                
+                                ydl_opts['progress_hooks'] = [debug_hook]
+                                ydl.download([url])
+                                
+                                # Find the actual downloaded file (yt-dlp may add extension)
+                                stem = Path(temp_full.name).stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                    potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        # Verify file has content
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found downloaded file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Downloaded file is empty: {potential_file}")
+                                
+                                # If no file found or all are empty, log detailed information
+                                logger.warning(f"No valid downloaded file found for stem: {stem}")
+                                logger.warning(f"Files found: {found_files}")
+                                
+                                # List all files in the directory for debugging
+                                temp_dir = Path(temp_full.name).parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in temp directory: {all_files}")
+                                
+                                # Check if there are any recent files that might be the download
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                return Path(temp_full.name)
+                        except Exception as e:
+                            logger.error(f"Download failed with exception: {str(e)}")
+                            raise
                     
                     downloaded_file = await loop.run_in_executor(None, download_video)
                     
@@ -390,29 +421,60 @@ class YouTubeDownloader(BaseDownloader):
                     loop = asyncio.get_event_loop()
                     
                     def download_video():
-                        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                            ydl.download([url])
-                            # Find the actual downloaded file
-                            stem = output_path.stem
-                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                                potential_file = output_path.parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    # Verify file has content
-                                    file_size = potential_file.stat().st_size
-                                    logger.info(f"Downloaded file size: {file_size} bytes")
+                        try:
+                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                                # Add a progress hook to debug the download process
+                                def debug_hook(d):
+                                    if d['status'] == 'error':
+                                        logger.error(f"Download error: {d.get('error', 'Unknown error')}")
+                                    elif d['status'] == 'finished':
+                                        logger.info(f"Download finished: {d.get('filename')}")
+                                
+                                ydl_opts['progress_hooks'] = [debug_hook]
+                                ydl.download([url])
+                                
+                                # Find the actual downloaded file
+                                stem = output_path.stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                    potential_file = output_path.parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        # Verify file has content
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found downloaded file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Downloaded file is empty: {potential_file}")
+                                
+                                # If no valid file found, check the original output path
+                                if output_path.exists():
+                                    file_size = output_path.stat().st_size
+                                    logger.info(f"Original output file size: {file_size} bytes")
                                     if file_size > 0:
-                                        return potential_file
-                                    else:
-                                        logger.warning(f"Downloaded file is empty: {potential_file}")
-                            # If no valid file found, check the original output path
-                            if output_path.exists():
-                                file_size = output_path.stat().st_size
-                                logger.info(f"Original output file size: {file_size} bytes")
-                                if file_size > 0:
-                                    return output_path
-                            # Fallback
-                            logger.warning(f"No valid downloaded file found for stem: {stem}")
-                            return output_path
+                                        return output_path
+                                
+                                # List all files in the directory for debugging
+                                temp_dir = output_path.parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in temp directory: {all_files}")
+                                
+                                # Check if there are any recent files that might be the download
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                # Fallback
+                                logger.warning(f"No valid downloaded file found for stem: {stem}")
+                                logger.warning(f"Files found: {found_files}")
+                                return output_path
+                        except Exception as e:
+                            logger.error(f"Download failed with exception: {str(e)}")
+                            raise
                     
                     return await loop.run_in_executor(None, download_video)
                     

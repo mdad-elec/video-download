@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
+from ..utils.logger import logger
 
 class FacebookDownloader(BaseDownloader):
     
@@ -146,23 +147,53 @@ class FacebookDownloader(BaseDownloader):
                     config['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
             
                     def download_video():
-                        with yt_dlp.YoutubeDL(config) as ydl:
-                            ydl.download([clean_url])
-                            # Find actual file
-                            stem = Path(temp_full.name).stem
-                            for ext in ['.mp4', '.webm', '.mkv']:
-                                potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    # Verify file has content
-                                    file_size = potential_file.stat().st_size
-                                    logger.info(f"Facebook downloaded file size: {file_size} bytes")
-                                    if file_size > 0:
-                                        return potential_file
-                                    else:
-                                        logger.warning(f"Facebook downloaded file is empty: {potential_file}")
-                            # Fallback
-                            logger.warning(f"No valid Facebook downloaded file found for stem: {stem}")
-                            return Path(temp_full.name)
+                        try:
+                            # Add progress hook for debugging
+                            def debug_hook(d):
+                                if d['status'] == 'error':
+                                    logger.error(f"Facebook download error: {d.get('error', 'Unknown error')}")
+                                elif d['status'] == 'finished':
+                                    logger.info(f"Facebook download finished: {d.get('filename')}")
+                            
+                            config['progress_hooks'] = [debug_hook]
+                            
+                            with yt_dlp.YoutubeDL(config) as ydl:
+                                ydl.download([clean_url])
+                                # Find actual file
+                                stem = Path(temp_full.name).stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv']:
+                                    potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        # Verify file has content
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found Facebook downloaded file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Facebook downloaded file is empty: {potential_file}")
+                                
+                                # List all files in directory for debugging
+                                temp_dir = Path(temp_full.name).parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in Facebook temp directory: {all_files}")
+                                
+                                # Check for any potential matches
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Facebook potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                # Fallback
+                                logger.warning(f"No valid Facebook downloaded file found for stem: {stem}")
+                                logger.warning(f"Files found: {found_files}")
+                                return Path(temp_full.name)
+                        except Exception as e:
+                            logger.error(f"Facebook download failed with exception: {str(e)}")
+                            raise
                     
                     downloaded_file = await loop.run_in_executor(None, download_video)
                     
@@ -181,28 +212,59 @@ class FacebookDownloader(BaseDownloader):
                     return trimmed_path
                 else:
                     def download_video():
-                        with yt_dlp.YoutubeDL(config) as ydl:
-                            ydl.download([clean_url])
-                            stem = output_path.stem
-                            for ext in ['.mp4', '.webm', '.mkv']:
-                                potential_file = output_path.parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    # Verify file has content
-                                    file_size = potential_file.stat().st_size
-                                    logger.info(f"Facebook downloaded file size: {file_size} bytes")
+                        try:
+                            # Add progress hook for debugging
+                            def debug_hook(d):
+                                if d['status'] == 'error':
+                                    logger.error(f"Facebook direct download error: {d.get('error', 'Unknown error')}")
+                                elif d['status'] == 'finished':
+                                    logger.info(f"Facebook direct download finished: {d.get('filename')}")
+                            
+                            config['progress_hooks'] = [debug_hook]
+                            
+                            with yt_dlp.YoutubeDL(config) as ydl:
+                                ydl.download([clean_url])
+                                stem = output_path.stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv']:
+                                    potential_file = output_path.parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        # Verify file has content
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found Facebook direct downloaded file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Facebook direct downloaded file is empty: {potential_file}")
+                                
+                                # Check original output path
+                                if output_path.exists():
+                                    file_size = output_path.stat().st_size
+                                    logger.info(f"Facebook original output file size: {file_size} bytes")
                                     if file_size > 0:
-                                        return potential_file
-                                    else:
-                                        logger.warning(f"Facebook downloaded file is empty: {potential_file}")
-                            # Check original output path
-                            if output_path.exists():
-                                file_size = output_path.stat().st_size
-                                logger.info(f"Facebook original output file size: {file_size} bytes")
-                                if file_size > 0:
-                                    return output_path
-                            # Fallback
-                            logger.warning(f"No valid Facebook downloaded file found for stem: {stem}")
-                            return output_path
+                                        return output_path
+                                
+                                # List all files in directory for debugging
+                                temp_dir = output_path.parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in Facebook direct temp directory: {all_files}")
+                                
+                                # Check for any potential matches
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Facebook direct potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                # Fallback
+                                logger.warning(f"No valid Facebook direct downloaded file found for stem: {stem}")
+                                logger.warning(f"Files found: {found_files}")
+                                return output_path
+                        except Exception as e:
+                            logger.error(f"Facebook direct download failed with exception: {str(e)}")
+                            raise
                     
                     return await loop.run_in_executor(None, download_video)
                     
