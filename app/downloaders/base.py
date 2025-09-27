@@ -5,6 +5,7 @@ import os
 import asyncio
 from pathlib import Path
 import yt_dlp
+from ..utils.logger import logger
 
 class BaseDownloader(ABC):
     """Base class for all platform downloaders"""
