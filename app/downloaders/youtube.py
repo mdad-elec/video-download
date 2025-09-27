@@ -352,7 +352,15 @@ class YouTubeDownloader(BaseDownloader):
                             for ext in ['.mp4', '.webm', '.mkv', '.mov']:
                                 potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
                                 if potential_file.exists():
-                                    return potential_file
+                                    # Verify file has content
+                                    file_size = potential_file.stat().st_size
+                                    logger.info(f"Downloaded file size: {file_size} bytes")
+                                    if file_size > 0:
+                                        return potential_file
+                                    else:
+                                        logger.warning(f"Downloaded file is empty: {potential_file}")
+                            # If no file found or all are empty, return the original path
+                            logger.warning(f"No valid downloaded file found for stem: {stem}")
                             return Path(temp_full.name)
                     
                     downloaded_file = await loop.run_in_executor(None, download_video)
@@ -389,7 +397,21 @@ class YouTubeDownloader(BaseDownloader):
                             for ext in ['.mp4', '.webm', '.mkv', '.mov']:
                                 potential_file = output_path.parent / f"{stem}.{ext}"
                                 if potential_file.exists():
-                                    return potential_file
+                                    # Verify file has content
+                                    file_size = potential_file.stat().st_size
+                                    logger.info(f"Downloaded file size: {file_size} bytes")
+                                    if file_size > 0:
+                                        return potential_file
+                                    else:
+                                        logger.warning(f"Downloaded file is empty: {potential_file}")
+                            # If no valid file found, check the original output path
+                            if output_path.exists():
+                                file_size = output_path.stat().st_size
+                                logger.info(f"Original output file size: {file_size} bytes")
+                                if file_size > 0:
+                                    return output_path
+                            # Fallback
+                            logger.warning(f"No valid downloaded file found for stem: {stem}")
                             return output_path
                     
                     return await loop.run_in_executor(None, download_video)

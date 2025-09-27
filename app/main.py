@@ -327,21 +327,37 @@ async def download_video(
         
         logger.info(f"Successfully downloaded video to {video_path}")
         
+        # Verify file exists and has content before streaming
+        if not os.path.exists(video_path):
+            raise HTTPException(status_code=500, detail="Downloaded file not found")
+        
+        file_size = os.path.getsize(video_path)
+        logger.info(f"File size before streaming: {file_size} bytes")
+        
+        if file_size == 0:
+            raise HTTPException(status_code=500, detail="Downloaded file is empty")
+        
         # Stream file and delete after
         async def iterfile():
+            bytes_sent = 0
             try:
                 async with aiofiles.open(video_path, 'rb') as file:
                     while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                        bytes_sent += len(chunk)
                         yield chunk
+                        logger.info(f"Sent {bytes_sent}/{file_size} bytes")
+                
+                logger.info(f"Finished streaming {bytes_sent} bytes")
             except Exception as e:
                 logger.error(f"Error streaming video: {str(e)}")
+                raise
             finally:
                 # Delete file after streaming - delay to ensure client finishes download
                 try:
                     if video_path and os.path.exists(video_path):
                         # Schedule cleanup with a delay
                         async def delayed_cleanup():
-                            await asyncio.sleep(30)  # Wait 30 seconds before cleanup
+                            await asyncio.sleep(60)  # Wait 60 seconds before cleanup
                             try:
                                 if video_path and os.path.exists(video_path):
                                     os.unlink(video_path)
@@ -594,19 +610,35 @@ async def convert_video(
             status="completed"
         )
         
+        # Verify file exists and has content before streaming
+        if not result_path.exists():
+            raise HTTPException(status_code=500, detail="Converted file not found")
+        
+        file_size = result_path.stat().st_size
+        logger.info(f"Converted file size before streaming: {file_size} bytes")
+        
+        if file_size == 0:
+            raise HTTPException(status_code=500, detail="Converted file is empty")
+        
         # Stream converted file and delete after
         async def iterfile():
+            bytes_sent = 0
             try:
                 async with aiofiles.open(result_path, 'rb') as file:
                     while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                        bytes_sent += len(chunk)
                         yield chunk
+                        logger.info(f"Sent {bytes_sent}/{file_size} bytes of converted file")
+                
+                logger.info(f"Finished streaming {bytes_sent} bytes of converted file")
             except Exception as e:
                 logger.error(f"Error streaming converted video: {str(e)}")
+                raise
             finally:
                 # Delete files after streaming - delay to ensure client finishes download
                 try:
                     async def delayed_cleanup():
-                        await asyncio.sleep(30)  # Wait 30 seconds before cleanup
+                        await asyncio.sleep(60)  # Wait 60 seconds before cleanup
                         try:
                             if video_path and video_path.exists():
                                 video_path.unlink()

@@ -153,7 +153,15 @@ class FacebookDownloader(BaseDownloader):
                             for ext in ['.mp4', '.webm', '.mkv']:
                                 potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
                                 if potential_file.exists():
-                                    return potential_file
+                                    # Verify file has content
+                                    file_size = potential_file.stat().st_size
+                                    logger.info(f"Facebook downloaded file size: {file_size} bytes")
+                                    if file_size > 0:
+                                        return potential_file
+                                    else:
+                                        logger.warning(f"Facebook downloaded file is empty: {potential_file}")
+                            # Fallback
+                            logger.warning(f"No valid Facebook downloaded file found for stem: {stem}")
                             return Path(temp_full.name)
                     
                     downloaded_file = await loop.run_in_executor(None, download_video)
@@ -179,7 +187,21 @@ class FacebookDownloader(BaseDownloader):
                             for ext in ['.mp4', '.webm', '.mkv']:
                                 potential_file = output_path.parent / f"{stem}.{ext}"
                                 if potential_file.exists():
-                                    return potential_file
+                                    # Verify file has content
+                                    file_size = potential_file.stat().st_size
+                                    logger.info(f"Facebook downloaded file size: {file_size} bytes")
+                                    if file_size > 0:
+                                        return potential_file
+                                    else:
+                                        logger.warning(f"Facebook downloaded file is empty: {potential_file}")
+                            # Check original output path
+                            if output_path.exists():
+                                file_size = output_path.stat().st_size
+                                logger.info(f"Facebook original output file size: {file_size} bytes")
+                                if file_size > 0:
+                                    return output_path
+                            # Fallback
+                            logger.warning(f"No valid Facebook downloaded file found for stem: {stem}")
                             return output_path
                     
                     return await loop.run_in_executor(None, download_video)
