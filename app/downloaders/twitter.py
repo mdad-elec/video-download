@@ -214,77 +214,11 @@ class TwitterDownloader(BaseDownloader):
         last_error = None
         for config in download_configs:
             try:
+                # Use the robust download method with retry mechanism
+                downloaded_file = await self.verify_and_retry_download(clean_url, config, max_retries=2)
+                
                 if start_time is not None or end_time is not None:
-                    # Download full video first
-                    temp_full = self.create_temp_file()
-                    config['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
-            
-                    async def download_video():
-                        try:
-                            # Add progress hook for debugging
-                            def debug_hook(d):
-                                if d['status'] == 'error':
-                                    logger.error(f"Twitter download error: {d.get('error', 'Unknown error')}")
-                                elif d['status'] == 'finished':
-                                    logger.info(f"Twitter download finished: {d.get('filename')}")
-                                elif d['status'] == 'downloading':
-                                    logger.info(f"Twitter downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
-                            
-                            config['progress_hooks'] = [debug_hook]
-                            
-                            with yt_dlp.YoutubeDL(config) as ydl:
-                                ydl.download([clean_url])
-                                
-                                # Find actual file - support more file types
-                                stem = Path(temp_full.name).stem
-                                found_files = []
-                                file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
-                                
-                                for ext in file_extensions:
-                                    potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                                    if potential_file.exists():
-                                        # Wait for file to be fully written
-                                        await self.wait_for_file_write(potential_file)
-                                        file_size = potential_file.stat().st_size
-                                        logger.info(f"Found Twitter file: {potential_file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return potential_file
-                                        else:
-                                            logger.warning(f"Twitter file is empty: {potential_file}")
-                                
-                                # Also check for files with similar names (yt-dlp sometimes adds suffixes)
-                                temp_dir = Path(temp_full.name).parent
-                                for file in temp_dir.glob(f"{stem}*"):
-                                    if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
-                                        # Wait for file to be fully written
-                                        await self.wait_for_file_write(file)
-                                        file_size = file.stat().st_size
-                                        logger.info(f"Found similar Twitter file: {file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return file
-                                
-                                # List all files in directory for debugging
-                                temp_dir = Path(temp_full.name).parent
-                                all_files = list(temp_dir.glob("*"))
-                                logger.warning(f"All files in Twitter temp directory: {all_files}")
-                                
-                                # Check for any potential matches
-                                for file in all_files:
-                                    if file.is_file() and stem in file.name:
-                                        file_size = file.stat().st_size
-                                        logger.warning(f"Twitter potential match: {file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return file
-                                
-                                logger.warning(f"No valid Twitter downloaded file found for stem: {stem}")
-                                return Path(temp_full.name)
-                        except Exception as e:
-                            logger.error(f"Twitter download failed with exception: {str(e)}")
-                            raise
-                    
-                    downloaded_file = await download_video()
-                    
-                    # Trim video
+                    # Trim video if needed
                     processor = VideoProcessor()
                     trimmed_path = await processor.trim_video(
                         downloaded_file, 
@@ -293,90 +227,22 @@ class TwitterDownloader(BaseDownloader):
                         end_time
                     )
                     
-                    # Clean up
+                    # Clean up original file
                     asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
                     
                     return trimmed_path
                 else:
-                    async def download_video():
-                        try:
-                            # Add progress hook for debugging
-                            def debug_hook(d):
-                                if d['status'] == 'error':
-                                    logger.error(f"Twitter direct download error: {d.get('error', 'Unknown error')}")
-                                elif d['status'] == 'finished':
-                                    logger.info(f"Twitter direct download finished: {d.get('filename')}")
-                                elif d['status'] == 'downloading':
-                                    logger.info(f"Twitter direct downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
-                            
-                            config['progress_hooks'] = [debug_hook]
-                            
-                            with yt_dlp.YoutubeDL(config) as ydl:
-                                ydl.download([clean_url])
-                                
-                                stem = output_path.stem
-                                found_files = []
-                                file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
-                                
-                                for ext in file_extensions:
-                                    potential_file = output_path.parent / f"{stem}.{ext}"
-                                    if potential_file.exists():
-                                        # Wait for file to be fully written
-                                        await self.wait_for_file_write(potential_file)
-                                        file_size = potential_file.stat().st_size
-                                        logger.info(f"Found Twitter direct file: {potential_file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return potential_file
-                                        else:
-                                            logger.warning(f"Twitter direct file is empty: {potential_file}")
-                                
-                                # Also check for files with similar names (yt-dlp sometimes adds suffixes)
-                                temp_dir = output_path.parent
-                                for file in temp_dir.glob(f"{stem}*"):
-                                    if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
-                                        # Wait for file to be fully written
-                                        await self.wait_for_file_write(file)
-                                        file_size = file.stat().st_size
-                                        logger.info(f"Found similar Twitter direct file: {file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return file
-                                
-                                # Check original output path
-                                if output_path.exists():
-                                    file_size = output_path.stat().st_size
-                                    logger.info(f"Twitter original output file size: {file_size} bytes")
-                                    if file_size > 0:
-                                        return output_path
-                                
-                                # List all files in directory for debugging
-                                temp_dir = output_path.parent
-                                all_files = list(temp_dir.glob("*"))
-                                logger.warning(f"All files in Twitter direct temp directory: {all_files}")
-                                
-                                # Check for any potential matches
-                                for file in all_files:
-                                    if file.is_file() and stem in file.name:
-                                        file_size = file.stat().st_size
-                                        logger.warning(f"Twitter direct potential match: {file}, size: {file_size} bytes")
-                                        if file_size > 0:
-                                            return file
-                                
-                                logger.warning(f"No valid Twitter direct downloaded file found for stem: {stem}")
-                                logger.warning(f"Files found: {found_files}")
-                                return output_path
-                        except Exception as e:
-                            logger.error(f"Twitter direct download failed with exception: {str(e)}")
-                            raise
-                    
-                    return await download_video()
+                    # Return the downloaded file directly
+                    return downloaded_file
                     
             except Exception as e:
                 last_error = e
+                logger.warning(f"Twitter download config failed: {str(e)}")
                 continue
         
         # If all configurations failed, raise the last error
         if last_error:
-            raise Exception(f"Could not download Twitter/X video after multiple attempts: {str(last_error)}")
+            raise Exception(f"Could not download Twitter/X video after multiple configuration attempts: {str(last_error)}")
     
     def _get_available_formats(self, info: Dict) -> list:
         """Extract available formats"""

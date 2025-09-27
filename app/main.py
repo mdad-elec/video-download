@@ -331,20 +331,11 @@ async def download_video(
         if not os.path.exists(video_path):
             raise HTTPException(status_code=500, detail="Downloaded file not found")
         
-        # Wait a moment for file to fully write and check size
-        await asyncio.sleep(1)
         file_size = os.path.getsize(video_path)
         logger.info(f"File size before streaming: {file_size} bytes")
         
-        # If file is empty, wait a bit longer and check again
         if file_size == 0:
-            logger.warning(f"File is empty, waiting for download to complete...")
-            await asyncio.sleep(3)
-            file_size = os.path.getsize(video_path)
-            logger.info(f"File size after wait: {file_size} bytes")
-            
-            if file_size == 0:
-                raise HTTPException(status_code=500, detail="Downloaded file is empty")
+            raise HTTPException(status_code=500, detail="Downloaded file is empty")
         
         # Stream file and delete after
         async def iterfile():

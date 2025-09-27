@@ -63,175 +63,57 @@ class TikTokDownloader(BaseDownloader):
             'buffersize': 1048576,  # 1MB buffer
             'nopart': False,  # Use partial files
             'nocheckcertificate': True,  # Skip cert validation for some platforms
-            # TikTok specific options
+            'extractor_args': {
+                'tiktok': {
+                    'api_hostname': 'api16-normal-c-useast1a.tiktokv.com',
+                }
+            },
+            # TikTok specific options with multiple user agents
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.tiktok.com/',
+                'Origin': 'https://www.tiktok.com',
                 'DNT': '1',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
             }
         }
         
         loop = asyncio.get_event_loop()
         
-        if start_time is not None or end_time is not None:
-            # Download full video first
-            temp_full = self.create_temp_file()
-            ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
+        # Use the robust download method with retry mechanism
+        try:
+            downloaded_file = await self.verify_and_retry_download(url, ydl_opts, max_retries=3)
             
-            async def download_video():
-                try:
-                    # Add progress hook for debugging
-                    def debug_hook(d):
-                        if d['status'] == 'error':
-                            logger.error(f"TikTok download error: {d.get('error', 'Unknown error')}")
-                        elif d['status'] == 'finished':
-                            logger.info(f"TikTok download finished: {d.get('filename')}")
-                        elif d['status'] == 'downloading':
-                            logger.info(f"TikTok downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
-                    
-                    ydl_opts['progress_hooks'] = [debug_hook]
-                    
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([url])
-                        
-                        # Find actual file - support more file types
-                        stem = Path(temp_full.name).stem
-                        found_files = []
-                        file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
-                        
-                        for ext in file_extensions:
-                            potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                            if potential_file.exists():
-                                # Wait for file to be fully written
-                                await self.wait_for_file_write(potential_file)
-                                file_size = potential_file.stat().st_size
-                                logger.info(f"Found TikTok file: {potential_file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return potential_file
-                                else:
-                                    logger.warning(f"TikTok file is empty: {potential_file}")
-                        
-                        # Also check for files with similar names (yt-dlp sometimes adds suffixes)
-                        temp_dir = Path(temp_full.name).parent
-                        for file in temp_dir.glob(f"{stem}*"):
-                            if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
-                                # Wait for file to be fully written
-                                await self.wait_for_file_write(file)
-                                file_size = file.stat().st_size
-                                logger.info(f"Found similar TikTok file: {file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return file
-                        
-                        # List all files in directory for debugging
-                        temp_dir = Path(temp_full.name).parent
-                        all_files = list(temp_dir.glob("*"))
-                        logger.warning(f"All files in TikTok temp directory: {all_files}")
-                        
-                        # Check for any potential matches
-                        for file in all_files:
-                            if file.is_file() and stem in file.name:
-                                file_size = file.stat().st_size
-                                logger.warning(f"TikTok potential match: {file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return file
-                        
-                        logger.warning(f"No valid TikTok downloaded file found for stem: {stem}")
-                        return Path(temp_full.name)
-                except Exception as e:
-                    logger.error(f"TikTok download failed with exception: {str(e)}")
-                    raise
-            
-            downloaded_file = await download_video()
-            
-            # Trim video
-            processor = VideoProcessor()
-            trimmed_path = await processor.trim_video(
-                downloaded_file, 
-                output_path,
-                start_time, 
-                end_time
-            )
-            
-            # Clean up
-            asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
-            
-            return trimmed_path
-        else:
-            async def download_video():
-                try:
-                    # Add progress hook for debugging
-                    def debug_hook(d):
-                        if d['status'] == 'error':
-                            logger.error(f"TikTok direct download error: {d.get('error', 'Unknown error')}")
-                        elif d['status'] == 'finished':
-                            logger.info(f"TikTok direct download finished: {d.get('filename')}")
-                        elif d['status'] == 'downloading':
-                            logger.info(f"TikTok direct downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
-                    
-                    ydl_opts['progress_hooks'] = [debug_hook]
-                    
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([url])
-                        
-                        stem = output_path.stem
-                        found_files = []
-                        file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
-                        
-                        for ext in file_extensions:
-                            potential_file = output_path.parent / f"{stem}.{ext}"
-                            if potential_file.exists():
-                                # Wait for file to be fully written
-                                await self.wait_for_file_write(potential_file)
-                                file_size = potential_file.stat().st_size
-                                logger.info(f"Found TikTok direct file: {potential_file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return potential_file
-                                else:
-                                    logger.warning(f"TikTok direct file is empty: {potential_file}")
-                        
-                        # Also check for files with similar names (yt-dlp sometimes adds suffixes)
-                        temp_dir = output_path.parent
-                        for file in temp_dir.glob(f"{stem}*"):
-                            if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
-                                # Wait for file to be fully written
-                                await self.wait_for_file_write(file)
-                                file_size = file.stat().st_size
-                                logger.info(f"Found similar TikTok direct file: {file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return file
-                        
-                        # Check original output path
-                        if output_path.exists():
-                            file_size = output_path.stat().st_size
-                            logger.info(f"TikTok original output file size: {file_size} bytes")
-                            if file_size > 0:
-                                return output_path
-                        
-                        # List all files in directory for debugging
-                        temp_dir = output_path.parent
-                        all_files = list(temp_dir.glob("*"))
-                        logger.warning(f"All files in TikTok direct temp directory: {all_files}")
-                        
-                        # Check for any potential matches
-                        for file in all_files:
-                            if file.is_file() and stem in file.name:
-                                file_size = file.stat().st_size
-                                logger.warning(f"TikTok direct potential match: {file}, size: {file_size} bytes")
-                                if file_size > 0:
-                                    return file
-                        
-                        logger.warning(f"No valid TikTok direct downloaded file found for stem: {stem}")
-                        logger.warning(f"Files found: {found_files}")
-                        return output_path
-                except Exception as e:
-                    logger.error(f"TikTok direct download failed with exception: {str(e)}")
-                    raise
-            
-            return await download_video()
+            if start_time is not None or end_time is not None:
+                # Trim video if needed
+                processor = VideoProcessor()
+                trimmed_path = await processor.trim_video(
+                    downloaded_file, 
+                    output_path,
+                    start_time, 
+                    end_time
+                )
+                
+                # Clean up original file
+                asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
+                
+                return trimmed_path
+            else:
+                # Return the downloaded file directly
+                return downloaded_file
+                
+        except Exception as e:
+            logger.error(f"TikTok download failed after all retries: {str(e)}")
+            raise
     
     def _get_available_formats(self, info: Dict) -> list:
         """Extract available formats"""
