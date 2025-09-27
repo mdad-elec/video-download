@@ -2,6 +2,8 @@ import yt_dlp
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
+
+import httpx
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
 from ..utils.logger import logger
@@ -10,11 +12,20 @@ class TikTokDownloader(BaseDownloader):
     
     async def get_video_info(self, url: str) -> Dict[str, Any]:
         """Get TikTok video metadata"""
+        cookie_header = await self._prepare_cookie_header(url)
+
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+                'Referer': 'https://www.tiktok.com/',
+            }
         }
+
+        if cookie_header:
+            ydl_opts['http_headers']['Cookie'] = cookie_header
         
         loop = asyncio.get_event_loop()
         
@@ -43,8 +54,17 @@ class TikTokDownloader(BaseDownloader):
         """Download TikTok video"""
         
         temp_file = self.create_temp_file()
+        temp_file.close()
         output_path = Path(temp_file.name)
-        
+
+        if output_path.exists():
+            try:
+                output_path.unlink()
+            except OSError:
+                pass
+
+        cookie_header = await self._prepare_cookie_header(url)
+
         ydl_opts = {
             'format': format_id,
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
@@ -86,6 +106,9 @@ class TikTokDownloader(BaseDownloader):
                 'Cache-Control': 'max-age=0',
             }
         }
+
+        if cookie_header:
+            ydl_opts['http_headers']['Cookie'] = cookie_header
         
         loop = asyncio.get_event_loop()
         
@@ -114,7 +137,7 @@ class TikTokDownloader(BaseDownloader):
         except Exception as e:
             logger.error(f"TikTok download failed after all retries: {str(e)}")
             raise
-    
+
     def _get_available_formats(self, info: Dict) -> list:
         """Extract available formats"""
         formats = []
@@ -162,3 +185,35 @@ class TikTokDownloader(BaseDownloader):
         
         # Sort by quality (numeric) safely
         return sorted(formats, key=lambda x: int(x.get('quality', 0)), reverse=True)
+
+    async def _prepare_cookie_header(self, url: str) -> Optional[str]:
+        """Fetch TikTok page to obtain fresh cookies for yt-dlp."""
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.tiktok.com/',
+        }
+
+        try:
+            timeout = httpx.Timeout(10.0, connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                for endpoint in ["https://www.tiktok.com/", url]:
+                    try:
+                        await client.get(endpoint, headers=headers)
+                    except Exception as exc:
+                        logger.debug(f"TikTok cookie prefetch failed for {endpoint}: {exc}")
+                        continue
+
+                cookie_items = [(name, value) for name, value in client.cookies.items() if value]
+
+                if cookie_items:
+                    cookie_header = "; ".join(f"{name}={value}" for name, value in cookie_items)
+                    field_names = [name for name, _ in cookie_items]
+                    logger.debug(f"Prepared TikTok cookie header with fields: {field_names}")
+                    return cookie_header
+        except Exception as exc:
+            logger.debug(f"TikTok cookie preparation failed: {exc}")
+
+        return None
