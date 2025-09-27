@@ -336,13 +336,23 @@ async def download_video(
             except Exception as e:
                 logger.error(f"Error streaming video: {str(e)}")
             finally:
-                # Delete file after streaming
+                # Delete file after streaming - delay to ensure client finishes download
                 try:
                     if video_path and os.path.exists(video_path):
-                        os.unlink(video_path)
-                        logger.info(f"Cleaned up temporary file: {video_path}")
+                        # Schedule cleanup with a delay
+                        async def delayed_cleanup():
+                            await asyncio.sleep(30)  # Wait 30 seconds before cleanup
+                            try:
+                                if video_path and os.path.exists(video_path):
+                                    os.unlink(video_path)
+                                    logger.info(f"Cleaned up temporary file: {video_path}")
+                            except Exception as e:
+                                logger.warning(f"Failed to cleanup file {video_path}: {str(e)}")
+                        
+                        # Start cleanup task without awaiting
+                        asyncio.create_task(delayed_cleanup())
                 except Exception as e:
-                    logger.warning(f"Failed to cleanup file {video_path}: {str(e)}")
+                    logger.warning(f"Failed to schedule cleanup for {video_path}: {str(e)}")
         
         return StreamingResponse(
             iterfile(),
@@ -362,10 +372,20 @@ async def download_video(
         error_msg = str(e)
         logger.error(f"Unexpected error downloading video: {error_msg}")
         
-        # Cleanup any temporary files
+        # Cleanup any temporary files - with delay to avoid race conditions
         if video_path and os.path.exists(video_path):
             try:
-                os.unlink(video_path)
+                async def delayed_error_cleanup():
+                    await asyncio.sleep(5)  # Short delay for error cleanup
+                    try:
+                        if video_path and os.path.exists(video_path):
+                            os.unlink(video_path)
+                            logger.info(f"Cleaned up temporary file after error: {video_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to cleanup file after error {video_path}: {str(e)}")
+                
+                # Start cleanup task without awaiting
+                asyncio.create_task(delayed_error_cleanup())
             except:
                 pass
         
@@ -583,15 +603,23 @@ async def convert_video(
             except Exception as e:
                 logger.error(f"Error streaming converted video: {str(e)}")
             finally:
-                # Delete files after streaming
+                # Delete files after streaming - delay to ensure client finishes download
                 try:
-                    if video_path and video_path.exists():
-                        video_path.unlink()
-                    if result_path and result_path.exists():
-                        result_path.unlink()
-                    logger.info(f"Cleaned up conversion files")
+                    async def delayed_cleanup():
+                        await asyncio.sleep(30)  # Wait 30 seconds before cleanup
+                        try:
+                            if video_path and video_path.exists():
+                                video_path.unlink()
+                            if result_path and result_path.exists():
+                                result_path.unlink()
+                            logger.info(f"Cleaned up conversion files")
+                        except Exception as e:
+                            logger.warning(f"Failed to cleanup conversion files: {str(e)}")
+                    
+                    # Start cleanup task without awaiting
+                    asyncio.create_task(delayed_cleanup())
                 except Exception as e:
-                    logger.warning(f"Failed to cleanup conversion files: {str(e)}")
+                    logger.warning(f"Failed to schedule conversion cleanup: {str(e)}")
         
         return StreamingResponse(
             iterfile(),
@@ -607,11 +635,22 @@ async def convert_video(
     except Exception as e:
         logger.error(f"Video conversion error: {str(e)}")
         
-        # Cleanup any temporary files
+        # Cleanup any temporary files - with delay to avoid race conditions
         for path in [video_path, converted_path]:
             if path and path.exists():
                 try:
-                    path.unlink()
+                    async def delayed_conversion_error_cleanup():
+                        await asyncio.sleep(5)  # Short delay for error cleanup
+                        try:
+                            for p in [video_path, converted_path]:
+                                if p and p.exists():
+                                    p.unlink()
+                                    logger.info(f"Cleaned up conversion file after error: {p}")
+                        except Exception as e:
+                            logger.warning(f"Failed to cleanup conversion file after error: {str(e)}")
+                    
+                    # Start cleanup task without awaiting
+                    asyncio.create_task(delayed_conversion_error_cleanup())
                 except:
                     pass
         
