@@ -225,20 +225,34 @@ class TwitterDownloader(BaseDownloader):
         formats = []
         for f in info.get('formats', []):
             if f.get('vcodec') != 'none':
+                # Safely get quality - ensure it's numeric
                 quality = f.get('quality')
                 if quality is None:
                     # Estimate quality from height
                     height = f.get('height', 0)
                     quality = height
                 
+                # Convert to int if it's a string, or use 0 as fallback
+                try:
+                    quality = int(quality) if quality is not None else 0
+                except (ValueError, TypeError):
+                    quality = 0
+                
+                # Safely get filesize
+                filesize = f.get('filesize', 0)
+                try:
+                    filesize = int(filesize) if filesize is not None else 0
+                except (ValueError, TypeError):
+                    filesize = 0
+                
                 formats.append({
                     'format_id': f['format_id'],
                     'ext': f.get('ext', 'mp4'),
                     'resolution': f.get('resolution', f"{f.get('width', '?')}x{f.get('height', '?')}"),
-                    'filesize': f.get('filesize', 0),
+                    'filesize': filesize,
                     'quality': quality
                 })
         
-        # Remove duplicates and sort
+        # Remove duplicates and sort safely
         unique_formats = {f['resolution']: f for f in formats}
-        return sorted(unique_formats.values(), key=lambda x: x.get('quality', 0), reverse=True)
+        return sorted(unique_formats.values(), key=lambda x: int(x.get('quality', 0)), reverse=True)

@@ -109,13 +109,30 @@ class TikTokDownloader(BaseDownloader):
         for f in info.get('formats', []):
             if f.get('vcodec') != 'none':
                 resolution = f.get('resolution') or f"{f.get('width', '?')}x{f.get('height', '?')}"
-                quality = f.get('quality') or f.get('height', 0)
+                
+                # Safely get quality - ensure it's numeric
+                quality = f.get('quality')
+                if quality is None:
+                    quality = f.get('height', 0)
+                
+                # Convert to int if it's a string, or use 0 as fallback
+                try:
+                    quality = int(quality) if quality is not None else 0
+                except (ValueError, TypeError):
+                    quality = 0
+                
+                # Safely get filesize
+                filesize = f.get('filesize', 0)
+                try:
+                    filesize = int(filesize) if filesize is not None else 0
+                except (ValueError, TypeError):
+                    filesize = 0
                 
                 formats.append({
                     'format_id': f['format_id'],
                     'ext': f.get('ext', 'mp4'),
                     'resolution': resolution,
-                    'filesize': f.get('filesize', 0),
+                    'filesize': filesize,
                     'quality': quality
                 })
         
@@ -129,4 +146,5 @@ class TikTokDownloader(BaseDownloader):
                 'quality': 1080
             }]
         
-        return sorted(formats, key=lambda x: x.get('quality', 0), reverse=True)
+        # Sort by quality (numeric) safely
+        return sorted(formats, key=lambda x: int(x.get('quality', 0)), reverse=True)

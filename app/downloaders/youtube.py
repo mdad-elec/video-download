@@ -23,6 +23,8 @@ class YouTubeDownloader(BaseDownloader):
 
     def _locate_cookie_file(self) -> Optional[Path]:
         """Try to locate a usable YouTube cookies file"""
+        import time
+        
         module_dir = Path(__file__).resolve().parent
         project_root = module_dir.parent.parent
 
@@ -49,6 +51,8 @@ class YouTubeDownloader(BaseDownloader):
                 candidates.append((root / rel).expanduser())
 
         seen: set[Path] = set()
+        valid_cookies = []
+        
         for candidate in candidates:
             expanded = candidate.expanduser()
             try:
@@ -61,10 +65,28 @@ class YouTubeDownloader(BaseDownloader):
             seen.add(resolved)
 
             if resolved.is_file():
-                logger.info(f"Using YouTube cookies file at {resolved}")
-                return resolved
+                # Check if cookies file has content and is recent
+                try:
+                    file_size = resolved.stat().st_size
+                    file_mtime = resolved.stat().st_mtime
+                    current_time = time.time()
+                    
+                    # Only use cookies files that have content and are less than 24 hours old
+                    if file_size > 100 and (current_time - file_mtime) < 86400:  # 24 hours
+                        valid_cookies.append(resolved)
+                        logger.info(f"Found valid YouTube cookies file at {resolved} (size: {file_size} bytes)")
+                    else:
+                        logger.warning(f"Found expired or empty cookies file at {resolved} (size: {file_size} bytes)")
+                except Exception as e:
+                    logger.warning(f"Error checking cookies file {resolved}: {e}")
 
-        logger.debug("No YouTube cookies file could be located; falling back to anonymous requests.")
+        if valid_cookies:
+            # Return the most recent valid cookies file
+            best_cookie = max(valid_cookies, key=lambda p: p.stat().st_mtime)
+            logger.info(f"Using most recent YouTube cookies file: {best_cookie}")
+            return best_cookie
+
+        logger.debug("No valid YouTube cookies file could be located; falling back to anonymous requests.")
         return None
     
     def _get_ydl_configs(self, cookie_path: Optional[Path], *, for_info: bool = False) -> List[Dict[str, Any]]:
