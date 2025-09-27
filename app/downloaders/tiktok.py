@@ -48,18 +48,30 @@ class TikTokDownloader(BaseDownloader):
         ydl_opts = {
             'format': format_id,
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
-            'quiet': True,
-            'no_warnings': True,
-            'retries': 3,
-            'fragment_retries': 3,
-            'file_access_retries': 3,
-            'extractor_retries': 3,
-            'sleep_interval': 2,
-            'sleep_interval_requests': 2,
-            'concurrent_fragment_downloads': 3,
+            'quiet': False,  # Enable for better debugging
+            'no_warnings': False,
+            'retries': 10,  # Increased retries
+            'fragment_retries': 10,
+            'file_access_retries': 10,
+            'extractor_retries': 10,
+            'sleep_interval': 3,
+            'sleep_interval_requests': 3,
+            'concurrent_fragment_downloads': 4,
+            'timeout': 60,
+            'socket_timeout': 60,
+            'http_chunk_size': 10485760,  # 10MB chunks
+            'buffersize': 1048576,  # 1MB buffer
+            'nopart': False,  # Use partial files
+            'nocheckcertificate': True,  # Skip cert validation for some platforms
             # TikTok specific options
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
             }
         }
         
@@ -70,7 +82,7 @@ class TikTokDownloader(BaseDownloader):
             temp_full = self.create_temp_file()
             ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
             
-            def download_video():
+            async def download_video():
                 try:
                     # Add progress hook for debugging
                     def debug_hook(d):
@@ -86,19 +98,33 @@ class TikTokDownloader(BaseDownloader):
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         ydl.download([url])
                         
-                        # Find actual file
+                        # Find actual file - support more file types
                         stem = Path(temp_full.name).stem
                         found_files = []
-                        for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                        file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
+                        
+                        for ext in file_extensions:
                             potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
                             if potential_file.exists():
-                                found_files.append(potential_file)
+                                # Wait for file to be fully written
+                                await self.wait_for_file_write(potential_file)
                                 file_size = potential_file.stat().st_size
                                 logger.info(f"Found TikTok file: {potential_file}, size: {file_size} bytes")
                                 if file_size > 0:
                                     return potential_file
                                 else:
                                     logger.warning(f"TikTok file is empty: {potential_file}")
+                        
+                        # Also check for files with similar names (yt-dlp sometimes adds suffixes)
+                        temp_dir = Path(temp_full.name).parent
+                        for file in temp_dir.glob(f"{stem}*"):
+                            if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
+                                # Wait for file to be fully written
+                                await self.wait_for_file_write(file)
+                                file_size = file.stat().st_size
+                                logger.info(f"Found similar TikTok file: {file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return file
                         
                         # List all files in directory for debugging
                         temp_dir = Path(temp_full.name).parent
@@ -119,7 +145,7 @@ class TikTokDownloader(BaseDownloader):
                     logger.error(f"TikTok download failed with exception: {str(e)}")
                     raise
             
-            downloaded_file = await loop.run_in_executor(None, download_video)
+            downloaded_file = await download_video()
             
             # Trim video
             processor = VideoProcessor()
@@ -135,7 +161,7 @@ class TikTokDownloader(BaseDownloader):
             
             return trimmed_path
         else:
-            def download_video():
+            async def download_video():
                 try:
                     # Add progress hook for debugging
                     def debug_hook(d):
@@ -153,16 +179,30 @@ class TikTokDownloader(BaseDownloader):
                         
                         stem = output_path.stem
                         found_files = []
-                        for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                        file_extensions = ['.mp4', '.webm', '.mkv', '.mov', '.avi', '.flv', '.m4v', '.3gp']
+                        
+                        for ext in file_extensions:
                             potential_file = output_path.parent / f"{stem}.{ext}"
                             if potential_file.exists():
-                                found_files.append(potential_file)
+                                # Wait for file to be fully written
+                                await self.wait_for_file_write(potential_file)
                                 file_size = potential_file.stat().st_size
                                 logger.info(f"Found TikTok direct file: {potential_file}, size: {file_size} bytes")
                                 if file_size > 0:
                                     return potential_file
                                 else:
                                     logger.warning(f"TikTok direct file is empty: {potential_file}")
+                        
+                        # Also check for files with similar names (yt-dlp sometimes adds suffixes)
+                        temp_dir = output_path.parent
+                        for file in temp_dir.glob(f"{stem}*"):
+                            if file.is_file() and any(file.suffix.lower() == ext for ext in file_extensions):
+                                # Wait for file to be fully written
+                                await self.wait_for_file_write(file)
+                                file_size = file.stat().st_size
+                                logger.info(f"Found similar TikTok direct file: {file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return file
                         
                         # Check original output path
                         if output_path.exists():
@@ -191,7 +231,7 @@ class TikTokDownloader(BaseDownloader):
                     logger.error(f"TikTok direct download failed with exception: {str(e)}")
                     raise
             
-            return await loop.run_in_executor(None, download_video)
+            return await download_video()
     
     def _get_available_formats(self, info: Dict) -> list:
         """Extract available formats"""

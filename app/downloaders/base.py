@@ -49,3 +49,33 @@ class BaseDownloader(ABC):
                 os.unlink(filepath)
         except:
             pass
+    
+    async def wait_for_file_write(self, filepath: Path, max_wait: int = 10) -> bool:
+        """Wait for file to be fully written"""
+        import time
+        
+        start_time = time.time()
+        last_size = 0
+        stable_count = 0
+        
+        while time.time() - start_time < max_wait:
+            try:
+                if not filepath.exists():
+                    await asyncio.sleep(0.5)
+                    continue
+                
+                current_size = filepath.stat().st_size
+                
+                if current_size == last_size:
+                    stable_count += 1
+                    if stable_count >= 3:  # File size stable for 1.5 seconds
+                        return True
+                else:
+                    stable_count = 0
+                    last_size = current_size
+                
+                await asyncio.sleep(0.5)
+            except:
+                await asyncio.sleep(0.5)
+        
+        return False

@@ -331,11 +331,20 @@ async def download_video(
         if not os.path.exists(video_path):
             raise HTTPException(status_code=500, detail="Downloaded file not found")
         
+        # Wait a moment for file to fully write and check size
+        await asyncio.sleep(1)
         file_size = os.path.getsize(video_path)
         logger.info(f"File size before streaming: {file_size} bytes")
         
+        # If file is empty, wait a bit longer and check again
         if file_size == 0:
-            raise HTTPException(status_code=500, detail="Downloaded file is empty")
+            logger.warning(f"File is empty, waiting for download to complete...")
+            await asyncio.sleep(3)
+            file_size = os.path.getsize(video_path)
+            logger.info(f"File size after wait: {file_size} bytes")
+            
+            if file_size == 0:
+                raise HTTPException(status_code=500, detail="Downloaded file is empty")
         
         # Stream file and delete after
         async def iterfile():
@@ -370,11 +379,30 @@ async def download_video(
                 except Exception as e:
                     logger.warning(f"Failed to schedule cleanup for {video_path}: {str(e)}")
         
+        # Determine file extension and media type
+        file_ext = video_path.suffix.lower()
+        if not file_ext:
+            file_ext = '.mp4'  # default
+        
+        # Map file extensions to media types
+        media_types = {
+            '.mp4': 'video/mp4',
+            '.webm': 'video/webm',
+            '.mkv': 'video/x-matroska',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.flv': 'video/x-flv',
+            '.m4v': 'video/mp4',
+            '.3gp': 'video/3gpp'
+        }
+        
+        media_type = media_types.get(file_ext, 'video/mp4')
+        
         return StreamingResponse(
             iterfile(),
-            media_type="video/mp4",
+            media_type=media_type,
             headers={
-                "Content-Disposition": f"attachment; filename=video_{uuid.uuid4().hex[:8]}.mp4"
+                "Content-Disposition": f"attachment; filename=video_{uuid.uuid4().hex[:8]}{file_ext}"
             }
         )
         
@@ -653,9 +681,23 @@ async def convert_video(
                 except Exception as e:
                     logger.warning(f"Failed to schedule conversion cleanup: {str(e)}")
         
+    # Determine proper media type for converted file
+        media_types = {
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'mkv': 'video/x-matroska',
+            'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo',
+            'flv': 'video/x-flv',
+            'm4v': 'video/mp4',
+            '3gp': 'video/3gpp'
+        }
+        
+        media_type = media_types.get(output_format.lower(), f'video/{output_format}')
+        
         return StreamingResponse(
             iterfile(),
-            media_type=f"video/{output_format}",
+            media_type=media_type,
             headers={
                 "Content-Disposition": f"attachment; filename=video_{uuid.uuid4().hex[:8]}.{output_format}"
             }
