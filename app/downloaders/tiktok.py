@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
+from ..utils.logger import logger
 
 class TikTokDownloader(BaseDownloader):
     
@@ -49,9 +50,16 @@ class TikTokDownloader(BaseDownloader):
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
             'quiet': True,
             'no_warnings': True,
+            'retries': 3,
+            'fragment_retries': 3,
+            'file_access_retries': 3,
+            'extractor_retries': 3,
+            'sleep_interval': 2,
+            'sleep_interval_requests': 2,
+            'concurrent_fragment_downloads': 3,
             # TikTok specific options
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         }
         
@@ -63,15 +71,53 @@ class TikTokDownloader(BaseDownloader):
             ydl_opts['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
             
             def download_video():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-                    # Find actual file
-                    stem = Path(temp_full.name).stem
-                    for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                        if potential_file.exists():
-                            return potential_file
-                    return Path(temp_full.name)
+                try:
+                    # Add progress hook for debugging
+                    def debug_hook(d):
+                        if d['status'] == 'error':
+                            logger.error(f"TikTok download error: {d.get('error', 'Unknown error')}")
+                        elif d['status'] == 'finished':
+                            logger.info(f"TikTok download finished: {d.get('filename')}")
+                        elif d['status'] == 'downloading':
+                            logger.info(f"TikTok downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
+                    
+                    ydl_opts['progress_hooks'] = [debug_hook]
+                    
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+                        
+                        # Find actual file
+                        stem = Path(temp_full.name).stem
+                        found_files = []
+                        for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                            potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
+                            if potential_file.exists():
+                                found_files.append(potential_file)
+                                file_size = potential_file.stat().st_size
+                                logger.info(f"Found TikTok file: {potential_file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return potential_file
+                                else:
+                                    logger.warning(f"TikTok file is empty: {potential_file}")
+                        
+                        # List all files in directory for debugging
+                        temp_dir = Path(temp_full.name).parent
+                        all_files = list(temp_dir.glob("*"))
+                        logger.warning(f"All files in TikTok temp directory: {all_files}")
+                        
+                        # Check for any potential matches
+                        for file in all_files:
+                            if file.is_file() and stem in file.name:
+                                file_size = file.stat().st_size
+                                logger.warning(f"TikTok potential match: {file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return file
+                        
+                        logger.warning(f"No valid TikTok downloaded file found for stem: {stem}")
+                        return Path(temp_full.name)
+                except Exception as e:
+                    logger.error(f"TikTok download failed with exception: {str(e)}")
+                    raise
             
             downloaded_file = await loop.run_in_executor(None, download_video)
             
@@ -90,14 +136,60 @@ class TikTokDownloader(BaseDownloader):
             return trimmed_path
         else:
             def download_video():
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-                    stem = output_path.stem
-                    for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                        potential_file = output_path.parent / f"{stem}.{ext}"
-                        if potential_file.exists():
-                            return potential_file
-                    return output_path
+                try:
+                    # Add progress hook for debugging
+                    def debug_hook(d):
+                        if d['status'] == 'error':
+                            logger.error(f"TikTok direct download error: {d.get('error', 'Unknown error')}")
+                        elif d['status'] == 'finished':
+                            logger.info(f"TikTok direct download finished: {d.get('filename')}")
+                        elif d['status'] == 'downloading':
+                            logger.info(f"TikTok direct downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
+                    
+                    ydl_opts['progress_hooks'] = [debug_hook]
+                    
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+                        
+                        stem = output_path.stem
+                        found_files = []
+                        for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                            potential_file = output_path.parent / f"{stem}.{ext}"
+                            if potential_file.exists():
+                                found_files.append(potential_file)
+                                file_size = potential_file.stat().st_size
+                                logger.info(f"Found TikTok direct file: {potential_file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return potential_file
+                                else:
+                                    logger.warning(f"TikTok direct file is empty: {potential_file}")
+                        
+                        # Check original output path
+                        if output_path.exists():
+                            file_size = output_path.stat().st_size
+                            logger.info(f"TikTok original output file size: {file_size} bytes")
+                            if file_size > 0:
+                                return output_path
+                        
+                        # List all files in directory for debugging
+                        temp_dir = output_path.parent
+                        all_files = list(temp_dir.glob("*"))
+                        logger.warning(f"All files in TikTok direct temp directory: {all_files}")
+                        
+                        # Check for any potential matches
+                        for file in all_files:
+                            if file.is_file() and stem in file.name:
+                                file_size = file.stat().st_size
+                                logger.warning(f"TikTok direct potential match: {file}, size: {file_size} bytes")
+                                if file_size > 0:
+                                    return file
+                        
+                        logger.warning(f"No valid TikTok direct downloaded file found for stem: {stem}")
+                        logger.warning(f"Files found: {found_files}")
+                        return output_path
+                except Exception as e:
+                    logger.error(f"TikTok direct download failed with exception: {str(e)}")
+                    raise
             
             return await loop.run_in_executor(None, download_video)
     

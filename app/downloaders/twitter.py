@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
+from ..utils.logger import logger
 
 class TwitterDownloader(BaseDownloader):
     
@@ -135,6 +136,13 @@ class TwitterDownloader(BaseDownloader):
                 'quiet': True,
                 'no_warnings': True,
                 'merge_output_format': 'mp4',  # Ensure mp4 output
+                'retries': 3,
+                'fragment_retries': 3,
+                'file_access_retries': 3,
+                'extractor_retries': 3,
+                'sleep_interval': 2,
+                'sleep_interval_requests': 2,
+                'concurrent_fragment_downloads': 3,
             },
             {
                 'format': format_id,
@@ -142,19 +150,33 @@ class TwitterDownloader(BaseDownloader):
                 'quiet': True,
                 'no_warnings': True,
                 'merge_output_format': 'mp4',
+                'retries': 3,
+                'fragment_retries': 3,
+                'file_access_retries': 3,
+                'extractor_retries': 3,
+                'sleep_interval': 2,
+                'sleep_interval_requests': 2,
+                'concurrent_fragment_downloads': 3,
                 'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Authorization': 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
                 }
             },
             {
-                'format': format_id,
+                'format': 'best[ext=mp4]/best',
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
                 'merge_output_format': 'mp4',
+                'retries': 3,
+                'fragment_retries': 3,
+                'file_access_retries': 3,
+                'extractor_retries': 3,
+                'sleep_interval': 3,
+                'sleep_interval_requests': 3,
+                'concurrent_fragment_downloads': 1,
                 'http_headers': {
                     'User-Agent': 'TwitterAndroid/10.21.1-release.0 (29900000-r-0) OnePlus/ONEPLUS_A5000 Android/9',
                     'Accept': 'application/json',
@@ -174,15 +196,53 @@ class TwitterDownloader(BaseDownloader):
                     config['outtmpl'] = str(Path(temp_full.name).parent / f"{Path(temp_full.name).stem}.%(ext)s")
             
                     def download_video():
-                        with yt_dlp.YoutubeDL(config) as ydl:
-                            ydl.download([clean_url])
-                            # Find actual file
-                            stem = Path(temp_full.name).stem
-                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                                potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    return potential_file
-                            return Path(temp_full.name)
+                        try:
+                            # Add progress hook for debugging
+                            def debug_hook(d):
+                                if d['status'] == 'error':
+                                    logger.error(f"Twitter download error: {d.get('error', 'Unknown error')}")
+                                elif d['status'] == 'finished':
+                                    logger.info(f"Twitter download finished: {d.get('filename')}")
+                                elif d['status'] == 'downloading':
+                                    logger.info(f"Twitter downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
+                            
+                            config['progress_hooks'] = [debug_hook]
+                            
+                            with yt_dlp.YoutubeDL(config) as ydl:
+                                ydl.download([clean_url])
+                                
+                                # Find actual file
+                                stem = Path(temp_full.name).stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                    potential_file = Path(temp_full.name).parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found Twitter file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Twitter file is empty: {potential_file}")
+                                
+                                # List all files in directory for debugging
+                                temp_dir = Path(temp_full.name).parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in Twitter temp directory: {all_files}")
+                                
+                                # Check for any potential matches
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Twitter potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                logger.warning(f"No valid Twitter downloaded file found for stem: {stem}")
+                                return Path(temp_full.name)
+                        except Exception as e:
+                            logger.error(f"Twitter download failed with exception: {str(e)}")
+                            raise
                     
                     downloaded_file = await loop.run_in_executor(None, download_video)
                     
@@ -201,14 +261,60 @@ class TwitterDownloader(BaseDownloader):
                     return trimmed_path
                 else:
                     def download_video():
-                        with yt_dlp.YoutubeDL(config) as ydl:
-                            ydl.download([clean_url])
-                            stem = output_path.stem
-                            for ext in ['.mp4', '.webm', '.mkv', '.mov']:
-                                potential_file = output_path.parent / f"{stem}.{ext}"
-                                if potential_file.exists():
-                                    return potential_file
-                            return output_path
+                        try:
+                            # Add progress hook for debugging
+                            def debug_hook(d):
+                                if d['status'] == 'error':
+                                    logger.error(f"Twitter direct download error: {d.get('error', 'Unknown error')}")
+                                elif d['status'] == 'finished':
+                                    logger.info(f"Twitter direct download finished: {d.get('filename')}")
+                                elif d['status'] == 'downloading':
+                                    logger.info(f"Twitter direct downloading: {d.get('_percent_str', '0%')} - {d.get('_speed_str', 'N/A')}")
+                            
+                            config['progress_hooks'] = [debug_hook]
+                            
+                            with yt_dlp.YoutubeDL(config) as ydl:
+                                ydl.download([clean_url])
+                                
+                                stem = output_path.stem
+                                found_files = []
+                                for ext in ['.mp4', '.webm', '.mkv', '.mov']:
+                                    potential_file = output_path.parent / f"{stem}.{ext}"
+                                    if potential_file.exists():
+                                        found_files.append(potential_file)
+                                        file_size = potential_file.stat().st_size
+                                        logger.info(f"Found Twitter direct file: {potential_file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return potential_file
+                                        else:
+                                            logger.warning(f"Twitter direct file is empty: {potential_file}")
+                                
+                                # Check original output path
+                                if output_path.exists():
+                                    file_size = output_path.stat().st_size
+                                    logger.info(f"Twitter original output file size: {file_size} bytes")
+                                    if file_size > 0:
+                                        return output_path
+                                
+                                # List all files in directory for debugging
+                                temp_dir = output_path.parent
+                                all_files = list(temp_dir.glob("*"))
+                                logger.warning(f"All files in Twitter direct temp directory: {all_files}")
+                                
+                                # Check for any potential matches
+                                for file in all_files:
+                                    if file.is_file() and stem in file.name:
+                                        file_size = file.stat().st_size
+                                        logger.warning(f"Twitter direct potential match: {file}, size: {file_size} bytes")
+                                        if file_size > 0:
+                                            return file
+                                
+                                logger.warning(f"No valid Twitter direct downloaded file found for stem: {stem}")
+                                logger.warning(f"Files found: {found_files}")
+                                return output_path
+                        except Exception as e:
+                            logger.error(f"Twitter direct download failed with exception: {str(e)}")
+                            raise
                     
                     return await loop.run_in_executor(None, download_video)
                     
