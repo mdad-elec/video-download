@@ -42,6 +42,24 @@ class BaseDownloader(ABC):
             suffix=suffix, 
             dir=self.temp_dir
         )
+
+    def _apply_common_ydl_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize yt-dlp options for consistent mp4 outputs."""
+        opts = options
+        opts.setdefault('prefer_ffmpeg', True)
+        opts.setdefault('merge_output_format', 'mp4')
+        opts.setdefault('format_sort', ['vcodec:h264', 'acodec:m4a', 'br'])
+
+        pp_args = list(opts.get('postprocessor_args', []))
+        if '-movflags' not in pp_args:
+            pp_args.extend(['-movflags', 'faststart'])
+        opts['postprocessor_args'] = pp_args
+
+        postprocessors = opts.setdefault('postprocessors', [])
+        if not any(pp.get('key') == 'FFmpegMetadata' for pp in postprocessors):
+            postprocessors.append({'key': 'FFmpegMetadata'})
+
+        return opts
     
     async def cleanup_file(self, filepath: Path, delay: int = 5):
         """Delete file after delay"""
@@ -104,7 +122,7 @@ class BaseDownloader(ABC):
                     pass
             
             # Update output template for this attempt
-            attempt_opts = ydl_opts.copy()
+            attempt_opts = self._apply_common_ydl_options(ydl_opts.copy())
             attempt_opts['outtmpl'] = str(temp_path.parent / f"{stem}.%(ext)s")
             attempt_opts.setdefault('overwrites', True)
             

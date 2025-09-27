@@ -119,10 +119,15 @@ class FacebookDownloader(BaseDownloader):
             except OSError:
                 pass
         
+        # Normalize default format to capture audio + video when possible
+        normalized_format = format_id
+        if normalized_format == 'best':
+            normalized_format = 'bestvideo+bestaudio/best'
+
         # Try multiple download configurations
         download_configs = [
             {
-                'format': format_id,
+                'format': normalized_format,
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
@@ -136,7 +141,7 @@ class FacebookDownloader(BaseDownloader):
                 'concurrent_fragment_downloads': 3,
             },
             {
-                'format': format_id,
+                'format': normalized_format,
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
@@ -199,6 +204,7 @@ class FacebookDownloader(BaseDownloader):
                             pass
 
                     config['outtmpl'] = str(temp_full_path.parent / f"{temp_stem}.%(ext)s")
+                    config = self._apply_common_ydl_options(config)
             
                     def download_video():
                         try:
@@ -288,6 +294,7 @@ class FacebookDownloader(BaseDownloader):
                     return trimmed_path
                 else:
                     config['outtmpl'] = str(output_path.parent / f"{stem}.%(ext)s")
+                    config = self._apply_common_ydl_options(config)
 
                     def download_video():
                         try:

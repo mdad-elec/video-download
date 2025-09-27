@@ -2,10 +2,11 @@ import yt_dlp
 import asyncio
 import tempfile
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 import httpx
 from .base import BaseDownloader
+from ..config import settings
 from ..utils.video_processor import VideoProcessor
 from ..utils.logger import logger
 
@@ -13,7 +14,7 @@ class TikTokDownloader(BaseDownloader):
     
     async def get_video_info(self, url: str) -> Dict[str, Any]:
         """Get TikTok video metadata"""
-        cookie_file = await self._prepare_cookie_file(url)
+        cookie_file, cleanup_cookie = await self._resolve_cookie_file(url)
 
         ydl_opts = {
             'quiet': True,
@@ -49,7 +50,7 @@ class TikTokDownloader(BaseDownloader):
         except Exception as e:
             raise Exception(f"Could not fetch TikTok video info: {str(e)}")
         finally:
-            if cookie_file and cookie_file.exists():
+            if cleanup_cookie and cookie_file and cookie_file.exists():
                 asyncio.create_task(self.cleanup_file(cookie_file, delay=30))
     
     async def download(self, url: str, format_id: str = 'best',
@@ -67,10 +68,14 @@ class TikTokDownloader(BaseDownloader):
             except OSError:
                 pass
 
-        cookie_file = await self._prepare_cookie_file(url)
+        cookie_file, cleanup_cookie = await self._resolve_cookie_file(url)
+
+        normalized_format = format_id
+        if normalized_format == 'best':
+            normalized_format = 'bestvideo+bestaudio/best'
 
         ydl_opts = {
-            'format': format_id,
+            'format': normalized_format,
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
             'quiet': False,  # Enable for better debugging
             'no_warnings': False,
@@ -143,7 +148,7 @@ class TikTokDownloader(BaseDownloader):
             raise
 
         finally:
-            if cookie_file and cookie_file.exists():
+            if cleanup_cookie and cookie_file and cookie_file.exists():
                 asyncio.create_task(self.cleanup_file(cookie_file, delay=30))
 
     def _get_available_formats(self, info: Dict) -> list:
@@ -193,6 +198,23 @@ class TikTokDownloader(BaseDownloader):
         
         # Sort by quality (numeric) safely
         return sorted(formats, key=lambda x: int(x.get('quality', 0)), reverse=True)
+
+    async def _resolve_cookie_file(self, url: str) -> Tuple[Optional[Path], bool]:
+        """Return a cookie file path and whether it should be cleaned up afterwards."""
+
+        configured = settings.TIKTOK_COOKIES_FILE
+        if configured and configured.exists():
+            try:
+                size = configured.stat().st_size
+                if size > 0:
+                    logger.info(f"Using configured TikTok cookies file: {configured} (size: {size} bytes)")
+                    return configured, False
+                logger.warning(f"Configured TikTok cookies file is empty: {configured}")
+            except Exception as exc:
+                logger.warning(f"Failed to validate configured TikTok cookies file {configured}: {exc}")
+
+        generated = await self._prepare_cookie_file(url)
+        return generated, generated is not None
 
     async def _prepare_cookie_file(self, url: str) -> Optional[Path]:
         """Fetch TikTok page to obtain fresh cookies, storing them in Netscape format."""

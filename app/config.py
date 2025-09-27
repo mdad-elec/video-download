@@ -26,6 +26,9 @@ class Settings:
     # External integrations
     _cookie_path = os.getenv("YOUTUBE_COOKIES_FILE")
     YOUTUBE_COOKIES_FILE = Path(_cookie_path).expanduser() if _cookie_path else None
+
+    _tiktok_cookie_path = os.getenv("TIKTOK_COOKIES_FILE")
+    TIKTOK_COOKIES_FILE = Path(_tiktok_cookie_path).expanduser() if _tiktok_cookie_path else None
     
     # Download limits
     MAX_VIDEO_DURATION = 3600  # 1 hour
