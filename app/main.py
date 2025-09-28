@@ -548,6 +548,32 @@ async def get_download_queue(
         logger.error(f"Error retrieving download queue for user {current_user}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve download queue")
 
+@app.get("/api/user/info")
+async def get_user_info(
+    current_user: str = Depends(get_current_user),
+    auth_manager: DatabaseAuthManager = Depends(get_auth_manager)
+):
+    """Get current user information"""
+    try:
+        logger.info(f"User {current_user} requesting user info")
+        
+        user = auth_manager.get_user_by_username(current_user)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_info = {
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        }
+        
+        logger.info(f"Retrieved user info for user {current_user}")
+        return user_info
+        
+    except Exception as e:
+        logger.error(f"Error retrieving user info for user {current_user}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user information")
+
 @app.get("/api/user/stats")
 async def get_user_stats(
     current_user: str = Depends(get_current_user),

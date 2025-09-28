@@ -27,27 +27,16 @@ class VideoDownloader {
     
     async loadUserInfo() {
         try {
-            // Extract username from token (you might want to create a dedicated endpoint for this)
-            const response = await fetch('/api/user/sessions', {
+            // Get user info from the dedicated endpoint
+            const response = await fetch('/api/user/info', {
                 headers: {
                     'Authorization': `Bearer ${this.currentToken}`
                 }
             });
             
             if (response.ok) {
-                // Get the actual username from the token
-                const token = localStorage.getItem('access_token');
-                if (token) {
-                    // Extract username from JWT token (payload is base64 encoded)
-                    try {
-                        const payload = JSON.parse(atob(token.split('.')[1]));
-                        document.getElementById('username').textContent = payload.username || payload.sub || 'User';
-                    } catch (e) {
-                        document.getElementById('username').textContent = 'User';
-                    }
-                } else {
-                    document.getElementById('username').textContent = 'User';
-                }
+                const userInfo = await response.json();
+                document.getElementById('username').textContent = userInfo.username || 'User';
             } else {
                 this.logout();
             }
