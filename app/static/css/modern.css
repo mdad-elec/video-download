@@ -576,3 +576,306 @@ body {
 .strength-strong-text {
   color: var(--success);
 }
+
+/* Updated Dashboard Layout */
+.download-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.download-title {
+  color: var(--primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* URL Input with Hint */
+.url-input-container {
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+.url-hint {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.url-input:focus + .url-hint {
+  opacity: 0.5;
+}
+
+/* Video Trimmer */
+.video-trimmer-container {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: var(--background);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.trimmer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.trimmer-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.trimmer-time-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.trimmer-separator {
+  opacity: 0.5;
+}
+
+.video-trimmer {
+  position: relative;
+  height: 40px;
+  background: var(--surface);
+  border-radius: 20px;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.trimmer-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+  opacity: 0.1;
+}
+
+.trimmer-progress {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--primary-light) 100%);
+  border-radius: 18px;
+  opacity: 0.3;
+}
+
+.trimmer-handle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  background: var(--primary);
+  border-radius: 50%;
+  border: 3px solid white;
+  cursor: grab;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+  z-index: 10;
+}
+
+.trimmer-handle:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+.trimmer-handle:active {
+  cursor: grabbing;
+  transform: translateY(-50%) scale(1.1);
+}
+
+.trimmer-start {
+  left: 0;
+}
+
+.trimmer-end {
+  right: 0;
+}
+
+/* Mobile Responsive Design */
+@media (max-width: 768px) {
+  .dashboard-container {
+    margin: 1rem;
+    padding: 1rem;
+  }
+  
+  .download-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .user-section {
+    justify-content: center;
+  }
+  
+  .download-title {
+    font-size: 1.25rem;
+  }
+  
+  .download-form {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  
+  .download-form > div {
+    grid-column: 1;
+  }
+  
+  .url-input {
+    font-size: 0.9rem;
+    padding: 0.75rem;
+  }
+  
+  .url-hint {
+    font-size: 0.75rem;
+    right: 0.75rem;
+  }
+  
+  .platform-select,
+  .format-select {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+  }
+  
+  .preview-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.75rem;
+  }
+  
+  .preview-thumbnail {
+    width: 100px;
+    height: 67px;
+    align-self: center;
+  }
+  
+  .preview-info h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .trimmer-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .video-trimmer {
+    height: 35px;
+  }
+  
+  .trimmer-handle {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+  }
+  
+  .preview-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .preview-actions button {
+    width: 100%;
+  }
+  
+  .download-history {
+    margin-top: 1rem;
+  }
+  
+  .history-header {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .history-item {
+    padding: 1rem;
+  }
+  
+  .history-thumbnail {
+    width: 60px;
+    height: 40px;
+  }
+  
+  .progress-container {
+    padding: 1rem;
+  }
+  
+  .logout-btn {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+  }
+  
+  .user-section i {
+    font-size: 1.2rem;
+  }
+  
+  .user-section span {
+    font-size: 0.9rem;
+  }
+}
+
+/* Extra Small Mobile */
+@media (max-width: 480px) {
+  .dashboard-container {
+    margin: 0.5rem;
+    padding: 0.75rem;
+  }
+  
+  .download-section {
+    padding: 1rem;
+  }
+  
+  .download-title {
+    font-size: 1.1rem;
+  }
+  
+  .url-input {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+  }
+  
+  .video-trimmer-container {
+    padding: 0.75rem;
+  }
+  
+  .trimmer-time-display {
+    font-size: 0.8rem;
+  }
+  
+  .preview-info p {
+    font-size: 0.85rem;
+  }
+}

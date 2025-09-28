@@ -8,28 +8,23 @@
 
 {% block content %}
 <div class="dashboard-container">
-        <div class="dashboard-header">
-            <div>
-                <h1 class="dashboard-title">🎬 Video Downloader</h1>
-                <p style="color: var(--text-secondary); margin-top: 0.5rem;">Download videos from your favorite platforms</p>
-            </div>
-            <div class="user-info">
-                <i class="fas fa-user-circle" style="font-size: 1.5rem; color: var(--primary);"></i>
-                <span id="username" style="font-weight: 600; margin: 0 0.5rem;"></span>
-                <button class="logout-btn" onclick="logout()">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
-            </div>
-        </div>
-        
         <div class="download-section">
-            <h2 style="color: var(--primary); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-download"></i>
-                Download Video
-            </h2>
+            <div class="download-header">
+                <div class="user-section">
+                    <i class="fas fa-user-circle" style="font-size: 1.5rem; color: var(--primary);"></i>
+                    <span id="username" style="font-weight: 600; margin: 0 0.5rem;"></span>
+                    <button class="logout-btn" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+                <h1 class="download-title">🎬 Video Downloader</h1>
+            </div>
             
             <div class="download-form">
-                <input type="url" id="videoUrl" class="url-input" placeholder="Paste video URL here (YouTube, TikTok, Facebook, Twitter)">
+                <div class="url-input-container">
+                    <input type="url" id="videoUrl" class="url-input" placeholder="Paste video URL here (YouTube, TikTok, Facebook, Twitter)">
+                    <div class="url-hint">Press ⏎ Enter or click Get Info</div>
+                </div>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
                     <div>
@@ -57,23 +52,7 @@
                     </button>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                    <div>
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">Start Time (seconds)</label>
-                        <input type="number" id="startTime" placeholder="0" min="0" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;">
-                    </div>
-                    <div>
-                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; color: var(--text-primary);">End Time (seconds)</label>
-                        <input type="number" id="endTime" placeholder="Auto" min="0" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border); border-radius: 8px;">
-                    </div>
-                </div>
                 
-                <div style="text-align: center; margin-top: 1.5rem;">
-                    <button id="downloadBtn" class="download-btn" onclick="downloadVideo()" disabled>
-                        <i class="fas fa-download"></i>
-                        <span id="downloadBtnText">Get Video Info First</span>
-                    </button>
-                </div>
             </div>
             
             <!-- Video Preview -->
@@ -86,6 +65,25 @@
                         <p id="videoPlatform">Platform: --</p>
                     </div>
                 </div>
+                
+                <!-- Video Trimmer -->
+                <div class="video-trimmer-container">
+                    <div class="trimmer-header">
+                        <span class="trimmer-label">Trim Video</span>
+                        <div class="trimmer-time-display">
+                            <span id="trimStartTime">0:00</span>
+                            <span class="trimmer-separator">→</span>
+                            <span id="trimEndTime">0:00</span>
+                        </div>
+                    </div>
+                    <div class="video-trimmer">
+                        <div class="trimmer-track"></div>
+                        <div class="trimmer-progress"></div>
+                        <div class="trimmer-handle trimmer-start" data-handle="start">●</div>
+                        <div class="trimmer-handle trimmer-end" data-handle="end">●</div>
+                    </div>
+                </div>
+                
                 <div class="preview-actions">
                     <button class="btn-primary" onclick="downloadVideo()">
                         <i class="fas fa-download"></i> Download Now

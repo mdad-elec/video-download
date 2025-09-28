@@ -35,8 +35,19 @@ class VideoDownloader {
             });
             
             if (response.ok) {
-                // For now, we'll use a generic username since we don't have a user info endpoint
-                document.getElementById('username').textContent = 'User';
+                // Get the actual username from the token
+                const token = localStorage.getItem('access_token');
+                if (token) {
+                    // Extract username from JWT token (payload is base64 encoded)
+                    try {
+                        const payload = JSON.parse(atob(token.split('.')[1]));
+                        document.getElementById('username').textContent = payload.username || payload.sub || 'User';
+                    } catch (e) {
+                        document.getElementById('username').textContent = 'User';
+                    }
+                } else {
+                    document.getElementById('username').textContent = 'User';
+                }
             } else {
                 this.logout();
             }
@@ -224,6 +235,9 @@ class VideoDownloader {
             });
         }
         
+        // Initialize video trimmer
+        this.initializeTrimmer(videoInfo.duration);
+        
         // Show preview and enable download
         preview.classList.add('active');
         downloadBtn.disabled = false;
@@ -257,8 +271,9 @@ class VideoDownloader {
         const url = document.getElementById('videoUrl').value.trim();
         const platform = document.getElementById('platform').value;
         const formatId = document.getElementById('format').value;
-        const startTime = document.getElementById('startTime').value || null;
-        const endTime = document.getElementById('endTime').value || null;
+        const trimmerValues = this.getTrimmerValues();
+        const startTime = trimmerValues.startTime;
+        const endTime = trimmerValues.endTime;
         
         this.isDownloading = true;
         this.showProgress();
@@ -1006,6 +1021,141 @@ class VideoDownloader {
         } catch (error) {
             this.showError(`Error saving cookies: ${error.message}`);
         }
+    }
+    
+    // Video Trimmer Methods
+    initializeTrimmer(duration) {
+        this.trimmerData = {
+            duration: duration || 0,
+            startTime: 0,
+            endTime: duration || 0,
+            isDragging: false,
+            currentHandle: null
+        };
+        
+        this.setupTrimmerEvents();
+        this.updateTrimmerDisplay();
+    }
+    
+    setupTrimmerEvents() {
+        const trimmer = document.querySelector('.video-trimmer');
+        const startHandle = document.querySelector('.trimmer-start');
+        const endHandle = document.querySelector('.trimmer-end');
+        
+        // Handle drag events
+        startHandle.addEventListener('mousedown', (e) => this.startTrimmerDrag(e, 'start'));
+        endHandle.addEventListener('mousedown', (e) => this.startTrimmerDrag(e, 'end'));
+        
+        document.addEventListener('mousemove', (e) => this.handleTrimmerDrag(e));
+        document.addEventListener('mouseup', () => this.stopTrimmerDrag());
+        
+        // Touch events for mobile
+        startHandle.addEventListener('touchstart', (e) => this.startTrimmerDrag(e, 'start'));
+        endHandle.addEventListener('touchstart', (e) => this.startTrimmerDrag(e, 'end'));
+        
+        document.addEventListener('touchmove', (e) => this.handleTrimmerDrag(e));
+        document.addEventListener('touchend', () => this.stopTrimmerDrag());
+        
+        // Click on track to move handles
+        trimmer.addEventListener('click', (e) => {
+            if (e.target === trimmer || e.target.classList.contains('trimmer-track') || e.target.classList.contains('trimmer-progress')) {
+                this.moveTrimmerHandle(e);
+            }
+        });
+    }
+    
+    startTrimmerDrag(e, handle) {
+        e.preventDefault();
+        this.trimmerData.isDragging = true;
+        this.trimmerData.currentHandle = handle;
+        document.body.style.cursor = 'grabbing';
+    }
+    
+    handleTrimmerDrag(e) {
+        if (!this.trimmerData.isDragging || !this.trimmerData.currentHandle) return;
+        
+        e.preventDefault();
+        const trimmer = document.querySelector('.video-trimmer');
+        const rect = trimmer.getBoundingClientRect();
+        
+        // Get position (consider both mouse and touch events)
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const position = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+        const time = position * this.trimmerData.duration;
+        
+        if (this.trimmerData.currentHandle === 'start') {
+            this.trimmerData.startTime = Math.min(time, this.trimmerData.endTime - 1);
+        } else {
+            this.trimmerData.endTime = Math.max(time, this.trimmerData.startTime + 1);
+        }
+        
+        this.updateTrimmerDisplay();
+    }
+    
+    stopTrimmerDrag() {
+        this.trimmerData.isDragging = false;
+        this.trimmerData.currentHandle = null;
+        document.body.style.cursor = '';
+    }
+    
+    moveTrimmerHandle(e) {
+        const trimmer = document.querySelector('.video-trimmer');
+        const rect = trimmer.getBoundingClientRect();
+        const position = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const time = position * this.trimmerData.duration;
+        
+        // Move the closest handle
+        const distToStart = Math.abs(time - this.trimmerData.startTime);
+        const distToEnd = Math.abs(time - this.trimmerData.endTime);
+        
+        if (distToStart < distToEnd) {
+            this.trimmerData.startTime = Math.min(time, this.trimmerData.endTime - 1);
+        } else {
+            this.trimmerData.endTime = Math.max(time, this.trimmerData.startTime + 1);
+        }
+        
+        this.updateTrimmerDisplay();
+    }
+    
+    updateTrimmerDisplay() {
+        const startHandle = document.querySelector('.trimmer-start');
+        const endHandle = document.querySelector('.trimmer-end');
+        const progress = document.querySelector('.trimmer-progress');
+        const startTimeDisplay = document.getElementById('trimStartTime');
+        const endTimeDisplay = document.getElementById('trimEndTime');
+        
+        if (!this.trimmerData || this.trimmerData.duration === 0) return;
+        
+        const startPercent = (this.trimmerData.startTime / this.trimmerData.duration) * 100;
+        const endPercent = (this.trimmerData.endTime / this.trimmerData.duration) * 100;
+        
+        // Update handle positions
+        startHandle.style.left = `${startPercent}%`;
+        endHandle.style.left = `${endPercent}%`;
+        
+        // Update progress bar
+        progress.style.left = `${startPercent}%`;
+        progress.style.width = `${endPercent - startPercent}%`;
+        
+        // Update time displays
+        startTimeDisplay.textContent = this.formatDuration(this.trimmerData.startTime);
+        endTimeDisplay.textContent = this.formatDuration(this.trimmerData.endTime);
+    }
+    
+    getTrimmerValues() {
+        if (!this.trimmerData || this.trimmerData.duration === 0) {
+            return { startTime: null, endTime: null };
+        }
+        
+        // Only return values if trimming is actually being used (not the full video)
+        if (this.trimmerData.startTime > 0 || this.trimmerData.endTime < this.trimmerData.duration) {
+            return {
+                startTime: Math.round(this.trimmerData.startTime),
+                endTime: Math.round(this.trimmerData.endTime)
+            };
+        }
+        
+        return { startTime: null, endTime: null };
     }
     
     logout() {
