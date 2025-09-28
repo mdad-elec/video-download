@@ -29,6 +29,9 @@ class Settings:
 
     _tiktok_cookie_path = os.getenv("TIKTOK_COOKIES_FILE")
     TIKTOK_COOKIES_FILE = Path(_tiktok_cookie_path).expanduser() if _tiktok_cookie_path else None
+
+    _twitter_cookie_path = os.getenv("TWITTER_COOKIES_FILE")
+    TWITTER_COOKIES_FILE = Path(_twitter_cookie_path).expanduser() if _twitter_cookie_path else None
     
     # Download limits
     MAX_VIDEO_DURATION = 3600  # 1 hour

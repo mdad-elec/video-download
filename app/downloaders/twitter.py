@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 from .base import BaseDownloader
+from ..config import settings
 from ..utils.video_processor import VideoProcessor
 from ..utils.logger import logger
 
@@ -50,6 +51,14 @@ class TwitterDownloader(BaseDownloader):
         # Clean and normalize URL
         clean_url = self._extract_twitter_url(url)
         
+        cookie_file = self._get_cookie_file()
+        if cookie_file:
+            try:
+                size = cookie_file.stat().st_size
+                logger.info(f"Using configured Twitter cookies file: {cookie_file} (size: {size} bytes)")
+            except Exception:
+                logger.info(f"Using configured Twitter cookies file: {cookie_file}")
+
         # Try multiple configurations for Twitter
         configs = [
             # Basic config
@@ -85,8 +94,11 @@ class TwitterDownloader(BaseDownloader):
         loop = asyncio.get_event_loop()
         last_error = None
         
-        for i, config in enumerate(configs):
+        for i, base_config in enumerate(configs):
             try:
+                config = base_config.copy()
+                if cookie_file:
+                    config['cookiefile'] = str(cookie_file)
                 def extract_info():
                     with yt_dlp.YoutubeDL(config) as ydl:
                         return ydl.extract_info(clean_url, download=False)
@@ -109,6 +121,8 @@ class TwitterDownloader(BaseDownloader):
             except Exception as e:
                 last_error = e
                 if i == len(configs) - 1:  # Last attempt
+                    if 'No video content found' in str(e) and not cookie_file:
+                        raise Exception("Could not fetch Twitter/X video info after multiple attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
                     raise Exception(f"Could not fetch Twitter/X video info after multiple attempts: {str(e)}")
                 continue
     
@@ -128,6 +142,14 @@ class TwitterDownloader(BaseDownloader):
         if format_id == 'best':
             format_id = 'bestvideo+bestaudio/best'
         
+        cookie_file = self._get_cookie_file()
+        if cookie_file:
+            try:
+                size = cookie_file.stat().st_size
+                logger.info(f"Using configured Twitter cookies file: {cookie_file} (size: {size} bytes)")
+            except Exception:
+                logger.info(f"Using configured Twitter cookies file: {cookie_file}")
+
         # Try multiple download configurations
         download_configs = [
             {
@@ -212,8 +234,11 @@ class TwitterDownloader(BaseDownloader):
         
         # Try different configurations until one works
         last_error = None
-        for config in download_configs:
+        for base_config in download_configs:
             try:
+                config = base_config.copy()
+                if cookie_file:
+                    config['cookiefile'] = str(cookie_file)
                 # Use the robust download method with retry mechanism
                 downloaded_file = await self.verify_and_retry_download(clean_url, config, max_retries=2)
                 
@@ -242,6 +267,8 @@ class TwitterDownloader(BaseDownloader):
         
         # If all configurations failed, raise the last error
         if last_error:
+            if 'No video content found' in str(last_error) and not cookie_file:
+                raise Exception("Could not download Twitter/X video after multiple configuration attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
             raise Exception(f"Could not download Twitter/X video after multiple configuration attempts: {str(last_error)}")
     
     def _get_available_formats(self, info: Dict) -> list:
@@ -280,3 +307,16 @@ class TwitterDownloader(BaseDownloader):
         # Remove duplicates and sort safely
         unique_formats = {f['resolution']: f for f in formats}
         return sorted(unique_formats.values(), key=lambda x: int(x.get('quality', 0)), reverse=True)
+
+    def _get_cookie_file(self) -> Optional[Path]:
+        cookie_path = settings.TWITTER_COOKIES_FILE
+        if cookie_path and cookie_path.exists():
+            try:
+                size = cookie_path.stat().st_size
+                if size > 0:
+                    return cookie_path
+                logger.warning(f"Configured Twitter cookies file is empty: {cookie_path}")
+            except Exception as exc:
+                logger.warning(f"Failed to validate Twitter cookies file {cookie_path}: {exc}")
+        return None
+
