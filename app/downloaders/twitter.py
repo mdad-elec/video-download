@@ -168,10 +168,11 @@ class TwitterDownloader(BaseDownloader):
 
         entry_info, playlist_index, _ = await self._resolve_video_entry(clean_url, tweet_id, cookie_file)
         download_target = clean_url
+        chosen_format = self._choose_format(entry_info, format_id)
 
         download_configs = [
             {
-                'format': format_id,
+                'format': chosen_format,
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': False,
                 'no_warnings': False,
@@ -191,7 +192,7 @@ class TwitterDownloader(BaseDownloader):
                 'nocheckcertificate': True,
             },
             {
-                'format': format_id,
+                'format': chosen_format,
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': False,
                 'no_warnings': False,
@@ -333,3 +334,39 @@ class TwitterDownloader(BaseDownloader):
             except Exception as exc:
                 logger.warning(f"Failed to validate Twitter cookies file {cookie_path}: {exc}")
         return None
+
+    def _choose_format(self, entry_info: Dict[str, Any], fallback: str) -> str:
+        formats = entry_info.get('formats') or []
+        video_formats = [
+            f for f in formats
+            if f.get('vcodec') and f.get('vcodec') != 'none'
+        ]
+        audio_formats = [
+            f for f in formats
+            if f.get('acodec') and f.get('acodec') != 'none'
+        ]
+
+        if video_formats and audio_formats:
+            def sort_key_video(fmt):
+                return (
+                    fmt.get('height') or fmt.get('tbr') or 0,
+                    fmt.get('tbr') or 0
+                )
+
+            def sort_key_audio(fmt):
+                return fmt.get('abr') or fmt.get('tbr') or 0
+
+            best_video = max(video_formats, key=sort_key_video)
+            best_audio = max(audio_formats, key=sort_key_audio)
+
+            video_id = best_video.get('format_id')
+            audio_id = best_audio.get('format_id')
+
+            if video_id and audio_id and video_id != audio_id:
+                return f"{video_id}+{audio_id}"
+
+        primary_format = entry_info.get('format_id')
+        if primary_format:
+            return primary_format
+
+        return fallback
