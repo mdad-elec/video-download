@@ -144,7 +144,22 @@ class TikTokDownloader(BaseDownloader):
                 return downloaded_file
                 
         except Exception as e:
-            logger.error(f"TikTok download failed after all retries: {str(e)}")
+            message = str(e)
+            logger.error(f"TikTok download failed after all retries: {message}")
+
+            if 'Unable to extract webpage video data' in message:
+                if cookie_file is None:
+                    raise Exception(
+                        "TikTok now blocks anonymous downloads. Export your browser cookies "
+                        "and set TIKTOK_COOKIES_FILE in the environment before retrying."
+                    )
+                if cleanup_cookie:
+                    raise Exception(
+                        "TikTok rejected the generated session cookies. Please export your "
+                        "logged-in browser cookies to a file and set TIKTOK_COOKIES_FILE "
+                        "before retrying."
+                    )
+
             raise
 
         finally:

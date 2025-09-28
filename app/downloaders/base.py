@@ -5,6 +5,7 @@ import os
 import asyncio
 from pathlib import Path
 import yt_dlp
+import ffmpeg
 from ..utils.logger import logger
 
 class BaseDownloader(ABC):
@@ -60,6 +61,87 @@ class BaseDownloader(ABC):
             postprocessors.append({'key': 'FFmpegMetadata'})
 
         return opts
+
+    async def _ensure_quicktime_compat(self, filepath: Path) -> Path:
+        """Re-encode the file if needed so it plays with QuickTime and keeps audio."""
+
+        loop = asyncio.get_event_loop()
+
+        def convert_if_required() -> Path:
+            try:
+                probe = ffmpeg.probe(str(filepath))
+            except Exception as exc:
+                logger.debug(f"ffprobe failed for {filepath}: {exc}")
+                return filepath
+
+            format_names = probe.get('format', {}).get('format_name', '')
+            format_set = {name.strip() for name in format_names.split(',') if name}
+            video_stream = next((s for s in probe.get('streams', []) if s.get('codec_type') == 'video'), {})
+            audio_stream = next((s for s in probe.get('streams', []) if s.get('codec_type') == 'audio'), {})
+
+            video_codec = video_stream.get('codec_name', '')
+            audio_codec = audio_stream.get('codec_name', '')
+            pix_fmt = video_stream.get('pix_fmt', '')
+
+            container_ok = bool(format_set.intersection({'mp4', 'mov', 'm4a', '3gp', '3g2', 'mj2'}))
+            video_ok = video_codec in {'h264', 'avc1'}
+            audio_ok = (not audio_stream) or audio_codec in {'aac', 'mp4a'}
+            pix_ok = not pix_fmt or pix_fmt in {'yuv420p', 'yuvj420p'}
+
+            if container_ok and video_ok and audio_ok and pix_ok:
+                return filepath
+
+            target_path = filepath if filepath.suffix.lower() == '.mp4' else filepath.with_suffix('.mp4')
+            temp_output = target_path.parent / f"{target_path.stem}_qt{target_path.suffix}"
+
+            try:
+                if temp_output.exists():
+                    temp_output.unlink()
+
+                input_stream = ffmpeg.input(str(filepath))
+                output_stream = ffmpeg.output(
+                    input_stream,
+                    str(temp_output),
+                    vcodec='libx264',
+                    acodec='aac',
+                    pix_fmt='yuv420p',
+                    movflags='faststart',
+                    preset='veryfast',
+                    crf=20,
+                    audio_bitrate='192k',
+                    ar=48000,
+                )
+                ffmpeg.run(output_stream, overwrite_output=True, quiet=True)
+
+                if target_path.exists() and target_path != filepath:
+                    target_path.unlink()
+
+                if target_path == filepath:
+                    replacement_path = filepath.with_name(f"{filepath.stem}_orig{filepath.suffix}")
+                    filepath.rename(replacement_path)
+                    temp_output.rename(target_path)
+                    try:
+                        replacement_path.unlink()
+                    except Exception:
+                        pass
+                else:
+                    temp_output.rename(target_path)
+                    if filepath.exists() and filepath != target_path:
+                        filepath.unlink()
+
+                logger.info(f"Converted {filepath} to QuickTime-compatible {target_path}")
+                return target_path
+
+            except Exception as exc:
+                logger.warning(f"Failed to transcode {filepath} for QuickTime compatibility: {exc}")
+                if temp_output.exists():
+                    try:
+                        temp_output.unlink()
+                    except Exception:
+                        pass
+                return filepath
+
+        return await loop.run_in_executor(None, convert_if_required)
     
     async def cleanup_file(self, filepath: Path, delay: int = 5):
         """Delete file after delay"""
@@ -104,7 +186,7 @@ class BaseDownloader(ABC):
         """Download with verification and automatic retry"""
         import tempfile
         import time
-        
+
         for attempt in range(max_retries):
             logger.info(f"Download attempt {attempt + 1}/{max_retries} for {url}")
             
@@ -182,7 +264,8 @@ class BaseDownloader(ABC):
                     final_size = downloaded_file.stat().st_size
                     if final_size > 1024:
                         logger.info(f"Download verification successful: {final_size} bytes")
-                        return downloaded_file
+                        quicktime_safe = await self._ensure_quicktime_compat(downloaded_file)
+                        return quicktime_safe
                     else:
                         logger.warning(f"Final verification failed: {final_size} bytes")
                         try:
