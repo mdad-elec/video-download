@@ -27,24 +27,30 @@ class TwitterDownloader(BaseDownloader):
         
         return url
     
-    def _has_video_content(self, info) -> bool:
-        """Check if the tweet contains video content"""
+    def _select_video_entry(self, info: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Return a single video entry from info or None if none found."""
         if not info:
-            return False
-        
-        # Check if there are any video formats
-        formats = info.get('formats', [])
-        video_formats = [f for f in formats if f.get('vcodec') != 'none']
-        
-        # Check for video-specific fields
-        has_video_fields = any([
-            info.get('duration'),
-            info.get('width'),
-            info.get('height'),
-            len(video_formats) > 0
-        ])
-        
-        return has_video_fields
+            return None
+
+        if info.get('_type') == 'playlist':
+            entries = info.get('entries') or []
+            for entry in entries:
+                video_entry = self._select_video_entry(entry)
+                if video_entry:
+                    return video_entry
+            return None
+
+        formats = info.get('formats') or []
+        if any(f.get('vcodec') != 'none' for f in formats):
+            return info
+
+        if info.get('vcodec') and info.get('vcodec') != 'none':
+            return info
+
+        return None
+
+    def _has_video_content(self, info) -> bool:
+        return self._select_video_entry(info) is not None
     
     async def get_video_info(self, url: str) -> Dict[str, Any]:
         """Get Twitter/X video metadata"""
@@ -105,16 +111,16 @@ class TwitterDownloader(BaseDownloader):
                 
                 info = await loop.run_in_executor(None, extract_info)
                 
-                # Check if tweet actually contains video
-                if not self._has_video_content(info):
+                video_entry = self._select_video_entry(info)
+                if not video_entry:
                     raise Exception("No video content found in this tweet")
                 
                 return {
-                    'title': info.get('description', info.get('title', 'Twitter/X Video')),
-                    'duration': info.get('duration', 0),
-                    'thumbnail': info.get('thumbnail', ''),
-                    'uploader': info.get('uploader', ''),
-                    'formats': self._get_available_formats(info),
+                    'title': video_entry.get('description', video_entry.get('title', 'Twitter/X Video')),
+                    'duration': video_entry.get('duration', 0),
+                    'thumbnail': video_entry.get('thumbnail', ''),
+                    'uploader': video_entry.get('uploader', ''),
+                    'formats': self._get_available_formats(video_entry),
                     'platform': 'twitter'
                 }
                 
@@ -171,6 +177,7 @@ class TwitterDownloader(BaseDownloader):
                 'buffersize': 1048576,  # 1MB buffer
                 'nopart': False,  # Use partial files
                 'nocheckcertificate': True,  # Skip cert validation for some platforms
+                'noplaylist': True,
             },
             {
                 'format': format_id,
@@ -239,6 +246,7 @@ class TwitterDownloader(BaseDownloader):
                 config = base_config.copy()
                 if cookie_file:
                     config['cookiefile'] = str(cookie_file)
+                config.setdefault('noplaylist', True)
                 # Use the robust download method with retry mechanism
                 downloaded_file = await self.verify_and_retry_download(clean_url, config, max_retries=2)
                 
@@ -319,4 +327,3 @@ class TwitterDownloader(BaseDownloader):
             except Exception as exc:
                 logger.warning(f"Failed to validate Twitter cookies file {cookie_path}: {exc}")
         return None
-
