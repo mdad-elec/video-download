@@ -70,12 +70,8 @@ class TikTokDownloader(BaseDownloader):
 
         cookie_file, cleanup_cookie = await self._resolve_cookie_file(url)
 
-        normalized_format = format_id
-        if normalized_format == 'best':
-            normalized_format = 'bestvideo+bestaudio/best'
-
         ydl_opts = {
-            'format': normalized_format,
+            'format': format_id,
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
             'quiet': False,  # Enable for better debugging
             'no_warnings': False,
@@ -118,6 +114,7 @@ class TikTokDownloader(BaseDownloader):
 
         if cookie_file:
             ydl_opts['cookiefile'] = str(cookie_file)
+            ydl_opts.setdefault('extractor_args', {}).setdefault('tiktok', {}).setdefault('cookies', {})
 
         loop = asyncio.get_event_loop()
         
