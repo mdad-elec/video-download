@@ -166,7 +166,13 @@ class TwitterDownloader(BaseDownloader):
             except Exception:
                 logger.info(f"Using configured Twitter cookies file: {cookie_file}")
 
-        _entry_info, playlist_index, _ = await self._resolve_video_entry(clean_url, tweet_id, cookie_file)
+        entry_info, playlist_index, _ = await self._resolve_video_entry(clean_url, tweet_id, cookie_file)
+        download_target = (
+            entry_info.get('webpage_url') or
+            entry_info.get('original_url') or
+            entry_info.get('url') or
+            clean_url
+        )
 
         download_configs = [
             {
@@ -256,10 +262,9 @@ class TwitterDownloader(BaseDownloader):
                 config = base_config.copy()
                 if cookie_file:
                     config['cookiefile'] = str(cookie_file)
-                if playlist_index is not None:
-                    config['playlist_items'] = str(playlist_index)
+                config.setdefault('noplaylist', True)
 
-                downloaded_file = await self.verify_and_retry_download(clean_url, config, max_retries=2)
+                downloaded_file = await self.verify_and_retry_download(download_target, config, max_retries=2)
 
                 if start_time is not None or end_time is not None:
                     processor = VideoProcessor()
