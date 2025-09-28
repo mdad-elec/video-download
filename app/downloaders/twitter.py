@@ -167,12 +167,7 @@ class TwitterDownloader(BaseDownloader):
                 logger.info(f"Using configured Twitter cookies file: {cookie_file}")
 
         entry_info, playlist_index, _ = await self._resolve_video_entry(clean_url, tweet_id, cookie_file)
-        download_target = (
-            entry_info.get('webpage_url') or
-            entry_info.get('original_url') or
-            entry_info.get('url') or
-            clean_url
-        )
+        download_target = clean_url
 
         download_configs = [
             {
@@ -194,7 +189,6 @@ class TwitterDownloader(BaseDownloader):
                 'buffersize': 1048576,
                 'nopart': False,
                 'nocheckcertificate': True,
-                'noplaylist': True,
             },
             {
                 'format': format_id,
@@ -225,7 +219,6 @@ class TwitterDownloader(BaseDownloader):
                     'Upgrade-Insecure-Requests': '1',
                     'Authorization': 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
                 },
-                'noplaylist': True,
             },
             {
                 'format': 'best[ext=mp4]/best',
@@ -252,7 +245,6 @@ class TwitterDownloader(BaseDownloader):
                     'Accept-Language': 'en-US,en;q=0.5',
                     'Accept-Encoding': 'gzip, deflate',
                 },
-                'noplaylist': True,
             }
         ]
 
@@ -262,7 +254,11 @@ class TwitterDownloader(BaseDownloader):
                 config = base_config.copy()
                 if cookie_file:
                     config['cookiefile'] = str(cookie_file)
-                config.setdefault('noplaylist', True)
+                if playlist_index is not None:
+                    config['playlist_items'] = str(playlist_index)
+                    config['noplaylist'] = False
+                else:
+                    config.setdefault('noplaylist', True)
 
                 downloaded_file = await self.verify_and_retry_download(download_target, config, max_retries=2)
 
