@@ -874,6 +874,135 @@ async def get_scheduler_stats(
         logger.error(f"Error getting scheduler stats for admin {current_user}: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve scheduler statistics")
 
+@app.post("/api/cookies/save")
+async def save_cookies(
+    request: Request,
+    current_user: str = Depends(get_current_user),
+    auth_manager: DatabaseAuthManager = Depends(get_auth_manager)
+):
+    """Save cookies for a specific platform"""
+    try:
+        data = await request.json()
+        platform = data.get('platform')
+        cookie_file_name = data.get('cookieFileName')
+        cookie_content = data.get('cookieContent')
+        
+        if not platform or not cookie_file_name or not cookie_content:
+            raise HTTPException(status_code=400, detail="Missing required fields: platform, cookieFileName, cookieContent")
+        
+        # Validate platform
+        valid_platforms = ['youtube', 'tiktok', 'twitter']
+        if platform not in valid_platforms:
+            raise HTTPException(status_code=400, detail=f"Invalid platform. Must be one of: {', '.join(valid_platforms)}")
+        
+        # Basic validation of cookie content
+        if len(cookie_content.strip()) < 50:
+            raise HTTPException(status_code=400, detail="Cookie content too short or invalid")
+        
+        # Security check - ensure cookie content doesn't contain malicious content
+        if any(keyword in cookie_content.lower() for keyword in ['<script', 'javascript:', 'eval(', 'document.']):
+            raise HTTPException(status_code=400, detail="Invalid cookie content: potential security risk detected")
+        
+        # Determine the cookie file path (save in the project root)
+        project_root = Path(__file__).parent.parent
+        cookie_file_path = project_root / cookie_file_name
+        
+        try:
+            # Validate cookie format (basic check for Netscape format)
+            lines = cookie_content.strip().split('\n')
+            has_valid_header = any('# Netscape HTTP Cookie File' in line for line in lines[:5])
+            has_valid_cookies = any(len(line.split('\t')) >= 7 for line in lines if line.strip() and not line.startswith('#'))
+            
+            if not (has_valid_header or has_valid_cookies):
+                logger.warning(f"User {current_user} provided potentially invalid cookie format for {platform}")
+                # Don't reject, just log and continue
+            
+            # Write cookie file
+            async with aiofiles.open(cookie_file_path, 'w', encoding='utf-8') as f:
+                await f.write(cookie_content.strip() + '\n')
+            
+            logger.info(f"User {current_user} successfully saved cookies for {platform} to {cookie_file_path}")
+            
+            return {
+                "success": True,
+                "message": f"Cookies saved successfully for {platform}",
+                "platform": platform,
+                "file_path": str(cookie_file_path)
+            }
+            
+        except IOError as e:
+            logger.error(f"Failed to write cookie file {cookie_file_path}: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to save cookie file")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving cookies for user {current_user}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save cookies: {str(e)}")
+
+@app.get("/api/video/progress/{session_id}")
+async def progress_stream(
+    session_id: str,
+    request: Request,
+    current_user: str = Depends(get_current_user),
+    auth_manager: DatabaseAuthManager = Depends(get_auth_manager)
+):
+    """EventSource endpoint for download progress updates"""
+    from fastapi.responses import StreamingResponse
+    import json
+    
+    async def generate_progress():
+        try:
+            # This is a placeholder - in a real implementation you'd connect to your progress tracking system
+            # For now, we'll send a simple completion message
+            progress_data = {
+                "status": "info",
+                "message": "Download started",
+                "progress": 0,
+                "timestamp": str(asyncio.get_event_loop().time())
+            }
+            yield f"data: {json.dumps(progress_data)}\n\n"
+            
+            # Simulate progress updates (in real implementation, these would come from your download system)
+            for i in range(1, 10):
+                await asyncio.sleep(1)
+                progress_data = {
+                    "status": "downloading",
+                    "message": f"Downloading... {i * 10}%",
+                    "progress": i * 10,
+                    "timestamp": str(asyncio.get_event_loop().time())
+                }
+                yield f"data: {json.dumps(progress_data)}\n\n"
+            
+            # Final completion message
+            progress_data = {
+                "status": "finished",
+                "message": "Download completed!",
+                "progress": 100,
+                "timestamp": str(asyncio.get_event_loop().time())
+            }
+            yield f"data: {json.dumps(progress_data)}\n\n"
+            
+        except Exception as e:
+            error_data = {
+                "status": "error",
+                "message": f"Progress tracking error: {str(e)}",
+                "progress": 0,
+                "timestamp": str(asyncio.get_event_loop().time())
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    return StreamingResponse(
+        generate_progress(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
+
 @app.websocket("/ws")
 async def websocket_route(websocket: WebSocket, token: str = None):
     """WebSocket endpoint for real-time updates"""

@@ -48,7 +48,25 @@ class TikTokDownloader(BaseDownloader):
                 'platform': 'tiktok'
             }
         except Exception as e:
-            raise Exception(f"Could not fetch TikTok video info: {str(e)}")
+            message = str(e)
+            if 'Unable to extract webpage video data' in message:
+                if cookie_file is None:
+                    self.emit_progress({
+                        'status': 'cookie_error',
+                        'message': 'TikTok requires cookies for downloading. Please add TikTok cookies to continue.',
+                        'progress': 0,
+                        'platform': 'tiktok'
+                    })
+                    raise Exception("Could not fetch TikTok video info: TikTok requires cookies for downloading. Please add TikTok cookies to continue.")
+                elif cleanup_cookie:
+                    self.emit_progress({
+                        'status': 'cookie_error',
+                        'message': 'TikTok cookies are invalid or expired. Please refresh your cookies to continue downloading.',
+                        'progress': 0,
+                        'platform': 'tiktok'
+                    })
+                    raise Exception("Could not fetch TikTok video info: TikTok cookies are invalid or expired. Please refresh your cookies.")
+            raise Exception(f"Could not fetch TikTok video info: {message}")
         finally:
             if cleanup_cookie and cookie_file and cookie_file.exists():
                 asyncio.create_task(self.cleanup_file(cookie_file, delay=30))
@@ -127,11 +145,23 @@ class TikTokDownloader(BaseDownloader):
 
             if 'Unable to extract webpage video data' in message:
                 if cookie_file is None:
+                    self.emit_progress({
+                        'status': 'cookie_error',
+                        'message': 'TikTok requires cookies for downloading. Please add TikTok cookies to continue.',
+                        'progress': 0,
+                        'platform': 'tiktok'
+                    })
                     raise Exception(
                         "TikTok now blocks anonymous downloads. Export your browser cookies "
                         "and set TIKTOK_COOKIES_FILE in the environment before retrying."
                     )
                 if cleanup_cookie:
+                    self.emit_progress({
+                        'status': 'cookie_error',
+                        'message': 'TikTok cookies are invalid or expired. Please refresh your cookies to continue downloading.',
+                        'progress': 0,
+                        'platform': 'tiktok'
+                    })
                     raise Exception(
                         "TikTok rejected the generated session cookies. Please export your "
                         "logged-in browser cookies to a file and set TIKTOK_COOKIES_FILE "

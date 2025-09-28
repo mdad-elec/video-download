@@ -326,25 +326,73 @@ class VideoDownloader {
         progressFill.style.width = '0%';
         progressText.textContent = 'Preparing download...';
         
-        // Simulate progress (you might want to implement real progress tracking)
-        let progress = 0;
-        const interval = setInterval(() => {
-            if (!this.isDownloading) {
-                clearInterval(interval);
-                return;
+        // Set up real progress tracking with EventSource
+        const progressUrl = `/api/video/progress/${Date.now()}`;
+        this.progressEventSource = new EventSource(progressUrl);
+        
+        this.progressEventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Handle different progress statuses
+                if (data.status === 'cookie_error') {
+                    this.hideProgress();
+                    this.showCookieErrorNotification(data.platform, data.message);
+                    this.progressEventSource.close();
+                    return;
+                }
+                
+                if (data.status === 'error') {
+                    this.hideProgress();
+                    this.showError(data.message);
+                    this.progressEventSource.close();
+                    return;
+                }
+                
+                if (data.status === 'finished') {
+                    this.hideProgress();
+                    this.showSuccess('Download completed successfully!');
+                    this.progressEventSource.close();
+                    this.loadDownloadHistory();
+                    return;
+                }
+                
+                // Update progress
+                let progressText = data.message || 'Downloading...';
+                if (data.progress !== undefined) {
+                    progressFill.style.width = `${data.progress}%`;
+                    progressText += ` ${Math.round(data.progress)}%`;
+                }
+                
+                if (data.speed) {
+                    progressText += ` (${data.speed})`;
+                }
+                
+                if (data.eta) {
+                    progressText += ` - ETA: ${data.eta}`;
+                }
+                
+                document.getElementById('progressText').textContent = progressText;
+                
+            } catch (error) {
+                console.error('Error parsing progress data:', error);
             }
-            
-            progress += Math.random() * 15;
-            if (progress > 90) progress = 90;
-            
-            progressFill.style.width = `${progress}%`;
-            progressText.textContent = `Downloading... ${Math.round(progress)}%`;
-        }, 500);
+        };
+        
+        this.progressEventSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            this.progressEventSource.close();
+        };
     }
     
     hideProgress() {
         const progressContainer = document.getElementById('progressContainer');
         progressContainer.classList.remove('active');
+        
+        if (this.progressEventSource) {
+            this.progressEventSource.close();
+            this.progressEventSource = null;
+        }
     }
     
     clearVideo() {
@@ -481,6 +529,483 @@ class VideoDownloader {
                 setTimeout(() => notification.remove(), 300);
             }
         }, 5000);
+    }
+    
+    showCookieErrorNotification(platform, message) {
+        // Remove existing notifications
+        const existing = document.querySelector('.notification');
+        if (existing) existing.remove();
+        
+        const notification = document.createElement('div');
+        notification.className = 'notification cookie-error';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            max-width: 450px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.2);
+        `;
+        
+        const platformNames = {
+            'youtube': 'YouTube',
+            'tiktok': 'TikTok',
+            'twitter': 'Twitter/X'
+        };
+        
+        const platformName = platformNames[platform] || platform;
+        
+        notification.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-cookie-bite" style="font-size: 1.2em;"></i>
+                    <div>
+                        <div style="font-weight: 600; font-size: 1.1em;">🍪 I need cookies!</div>
+                        <div style="font-size: 0.9em; opacity: 0.9;">${platformName} cookies are expired</div>
+                    </div>
+                </div>
+                <div style="font-size: 0.85em; line-height: 1.4; opacity: 0.95;">
+                    ${message}
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                    <button onclick="videoDownloader.showCookieHelp('${platform}')" style="
+                        background: rgba(255,255,255,0.2);
+                        border: 1px solid rgba(255,255,255,0.3);
+                        color: white;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 0.8em;
+                        font-weight: 500;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='rgba(255,255,255,0.3)'" 
+                       onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                        <i class="fas fa-question-circle"></i> Help
+                    </button>
+                    <button onclick="videoDownloader.showCookiePaste('${platform}')" style="
+                        background: rgba(255,255,255,0.9);
+                        border: 1px solid rgba(255,255,255,0.3);
+                        color: #ef4444;
+                        padding: 6px 12px;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 0.8em;
+                        font-weight: 600;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='white'" 
+                       onmouseout="this.style.background='rgba(255,255,255,0.9)'">
+                        <i class="fas fa-paste"></i> Give me cookies
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // Auto-remove after 15 seconds (longer for cookie notifications)
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }
+        }, 15000);
+    }
+    
+    showCookieHelp(platform) {
+        // Remove existing cookie modals
+        const existingModal = document.querySelector('.cookie-modal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.className = 'cookie-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        `;
+        
+        const platformNames = {
+            'youtube': 'YouTube',
+            'tiktok': 'TikTok',
+            'twitter': 'Twitter/X'
+        };
+        
+        const platformName = platformNames[platform] || platform;
+        
+        modal.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 16px;
+                padding: 32px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: slideUp 0.3s ease;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0; color: #1f2937; font-size: 1.5em;">
+                        <i class="fas fa-cookie-bite" style="color: #f59e0b; margin-right: 8px;"></i>
+                        How to Get ${platformName} Cookies
+                    </h2>
+                    <button onclick="this.closest('.cookie-modal').remove()" style="
+                        background: none;
+                        border: none;
+                        font-size: 1.5em;
+                        cursor: pointer;
+                        color: #6b7280;
+                        padding: 4px;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#f3f4f6'; this.style.color='#374151'" 
+                       onmouseout="this.style.background='none'; this.style.color='#6b7280'">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div style="color: #4b5563; line-height: 1.6;">
+                    <h3 style="color: #1f2937; margin-bottom: 16px;">📖 Step-by-Step Guide</h3>
+                    
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                        <strong style="color: #92400e;">⚠️ Important:</strong> You must be logged in to ${platformName} in your browser for this to work!
+                    </div>
+                    
+                    <h4 style="color: #1f2937; margin: 20px 0 12px 0;">For Chrome/Edge:</h4>
+                    <ol style="margin-left: 20px; margin-bottom: 20px;">
+                        <li>Install the "Get cookies.txt" extension from the Chrome Web Store</li>
+                        <li>Go to ${platformName} and make sure you're logged in</li>
+                        <li>Click the extension icon in your browser toolbar</li>
+                        <li>Click "Export" → "Netscape format"</li>
+                        <li>Copy the entire text content</li>
+                        <li>Come back here and click "Give me cookies"</li>
+                    </ol>
+                    
+                    <h4 style="color: #1f2937; margin: 20px 0 12px 0;">For Firefox:</h4>
+                    <ol style="margin-left: 20px; margin-bottom: 20px;">
+                        <li>Install the "cookies.txt" extension from Firefox Add-ons</li>
+                        <li>Go to ${platformName} and make sure you're logged in</li>
+                        <li>Click the extension icon in your browser toolbar</li>
+                        <li>Click "Export" → "As Netscape HTTP Cookie File"</li>
+                        <li>Copy the entire text content</li>
+                        <li>Come back here and click "Give me cookies"</li>
+                    </ol>
+                    
+                    <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 8px; padding: 16px; margin-top: 20px;">
+                        <strong style="color: #1e40af;">💡 Pro Tip:</strong> Cookies typically expire after a few weeks. You'll need to refresh them periodically.
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 32px; justify-content: flex-end;">
+                    <button onclick="videoDownloader.showCookiePaste('${platform}'); this.closest('.cookie-modal').remove();" style="
+                        background: #3b82f6;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1em;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#2563eb'" 
+                       onmouseout="this.style.background='#3b82f6'">
+                        <i class="fas fa-paste"></i> Give me cookies
+                    </button>
+                    <button onclick="this.closest('.cookie-modal').remove()" style="
+                        background: #6b7280;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1em;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#4b5563'" 
+                       onmouseout="this.style.background='#6b7280'">
+                        Close
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+    
+    showCookiePaste(platform) {
+        // Remove existing cookie modals
+        const existingModal = document.querySelector('.cookie-modal');
+        if (existingModal) existingModal.remove();
+        
+        const modal = document.createElement('div');
+        modal.className = 'cookie-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        `;
+        
+        const platformNames = {
+            'youtube': 'YouTube',
+            'tiktok': 'TikTok',
+            'twitter': 'Twitter/X'
+        };
+        
+        const platformName = platformNames[platform] || platform;
+        const cookieFileName = `www.${platformName.toLowerCase().replace('/', '')}.com_cookies.txt`;
+        
+        modal.innerHTML = `
+            <div style="
+                background: white;
+                border-radius: 16px;
+                padding: 32px;
+                max-width: 700px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: slideUp 0.3s ease;
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                    <h2 style="margin: 0; color: #1f2937; font-size: 1.5em;">
+                        <i class="fas fa-paste" style="color: #10b981; margin-right: 8px;"></i>
+                        Paste ${platformName} Cookies
+                    </h2>
+                    <button onclick="this.closest('.cookie-modal').remove()" style="
+                        background: none;
+                        border: none;
+                        font-size: 1.5em;
+                        cursor: pointer;
+                        color: #6b7280;
+                        padding: 4px;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#f3f4f6'; this.style.color='#374151'" 
+                       onmouseout="this.style.background='none'; this.style.color='#6b7280'">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div style="color: #4b5563; line-height: 1.6;">
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                        <strong style="color: #92400e;">📋 Paste your ${platformName} cookies below:</strong>
+                        <div style="margin-top: 8px; font-size: 0.9em;">
+                            The cookies should be in Netscape format and start with <code># Netscape HTTP Cookie File</code>
+                        </div>
+                    </div>
+                    
+                    <textarea id="cookieTextarea" placeholder="Paste your cookies here..." style="
+                        width: 100%;
+                        height: 300px;
+                        border: 2px solid #d1d5db;
+                        border-radius: 8px;
+                        padding: 16px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 0.85em;
+                        resize: vertical;
+                        line-height: 1.4;
+                    "></textarea>
+                    
+                    <div id="cookieValidation" style="margin-top: 12px; font-size: 0.85em; color: #6b7280;"></div>
+                    
+                    <div style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 8px; padding: 16px; margin-top: 20px;">
+                        <strong style="color: #1e40af;">🔒 Security Note:</strong> Your cookies are stored locally on the server and are only used for video downloads. We do not share or misuse your data.
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px; margin-top: 32px; justify-content: flex-end;">
+                    <button onclick="videoDownloader.validateAndSaveCookies('${platform}', '${cookieFileName}')" style="
+                        background: #10b981;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1em;
+                        transition: all 0.2s ease;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    " onmouseover="this.style.background='#059669'" 
+                       onmouseout="this.style.background='#10b981'">
+                        <i class="fas fa-save"></i>
+                        Save Cookies
+                    </button>
+                    <button onclick="videoDownloader.showCookieHelp('${platform}'); this.closest('.cookie-modal').remove();" style="
+                        background: #6b7280;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1em;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#4b5563'" 
+                       onmouseout="this.style.background='#6b7280'">
+                        <i class="fas fa-question-circle"></i>
+                        Help
+                    </button>
+                    <button onclick="this.closest('.cookie-modal').remove()" style="
+                        background: #ef4444;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 500;
+                        font-size: 1em;
+                        transition: all 0.2s ease;
+                    " onmouseover="this.style.background='#dc2626'" 
+                       onmouseout="this.style.background='#ef4444'">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Close on outside click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        // Add real-time validation
+        const textarea = modal.querySelector('#cookieTextarea');
+        const validation = modal.querySelector('#cookieValidation');
+        
+        textarea.addEventListener('input', () => {
+            const content = textarea.value.trim();
+            this.validateCookieFormat(content, platform, validation);
+        });
+    }
+    
+    validateCookieFormat(content, platform, validationElement) {
+        if (!content) {
+            validationElement.innerHTML = '';
+            validationElement.style.color = '#6b7280';
+            return false;
+        }
+        
+        // Basic validation for Netscape cookie format
+        const lines = content.split('\n');
+        let validLines = 0;
+        let hasHeader = false;
+        
+        for (let i = 0; i < Math.min(lines.length, 10); i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('# Netscape HTTP Cookie File')) {
+                hasHeader = true;
+                continue;
+            }
+            if (line && !line.startsWith('#')) {
+                const parts = line.split('\t');
+                if (parts.length >= 7) {
+                    validLines++;
+                }
+            }
+        }
+        
+        if (hasHeader && validLines > 0) {
+            validationElement.innerHTML = `✅ Valid cookie format detected (${validLines} cookie${validLines > 1 ? 's' : ''} found)`;
+            validationElement.style.color = '#10b981';
+            return true;
+        } else if (validLines > 0) {
+            validationElement.innerHTML = `⚠️ Cookie data found but missing Netscape header. This might still work.`;
+            validationElement.style.color = '#f59e0b';
+            return true;
+        } else {
+            validationElement.innerHTML = '❌ No valid cookie data detected. Please check your cookie format.';
+            validationElement.style.color = '#ef4444';
+            return false;
+        }
+    }
+    
+    async validateAndSaveCookies(platform, cookieFileName) {
+        const textarea = document.querySelector('#cookieTextarea');
+        if (!textarea) return;
+        
+        const content = textarea.value.trim();
+        if (!content) {
+            alert('Please paste your cookies first.');
+            return;
+        }
+        
+        // Validate format
+        const validation = document.querySelector('#cookieValidation');
+        if (!this.validateCookieFormat(content, platform, validation)) {
+            if (!confirm('The cookie format doesn\'t look right. Save anyway?')) {
+                return;
+            }
+        }
+        
+        try {
+            const response = await fetch('/api/cookies/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.currentToken}`
+                },
+                body: JSON.stringify({
+                    platform: platform,
+                    cookieFileName: cookieFileName,
+                    cookieContent: content
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                // Show success message
+                this.showSuccess(`${platform.charAt(0).toUpperCase() + platform.slice(1)} cookies saved successfully! Try downloading again.`);
+                
+                // Close modal
+                const modal = document.querySelector('.cookie-modal');
+                if (modal) modal.remove();
+                
+                // Remove any cookie error notifications
+                const notifications = document.querySelectorAll('.notification.cookie-error');
+                notifications.forEach(n => n.remove());
+            } else {
+                this.showError(`Failed to save cookies: ${result.detail || 'Unknown error'}`);
+            }
+        } catch (error) {
+            this.showError(`Error saving cookies: ${error.message}`);
+        }
     }
     
     logout() {

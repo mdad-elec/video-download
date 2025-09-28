@@ -138,8 +138,17 @@ class TwitterDownloader(BaseDownloader):
             except Exception as e:
                 last_error = e
                 if i == len(configs) - 1:
-                    if 'No video content found' in str(e) and not cookie_file:
-                        raise Exception("Could not fetch Twitter/X video info after multiple attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
+                    if 'No video content found' in str(e):
+                        if cookie_file:
+                            self.emit_progress({
+                                'status': 'cookie_error',
+                                'message': 'Twitter cookies are invalid or expired. Please refresh your cookies to continue downloading.',
+                                'progress': 0,
+                                'platform': 'twitter'
+                            })
+                            raise Exception("Could not fetch Twitter/X video info after multiple attempts: Twitter cookies are invalid or expired. Please refresh your cookies.")
+                        else:
+                            raise Exception("Could not fetch Twitter/X video info after multiple attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
                     raise Exception(f"Could not fetch Twitter/X video info after multiple attempts: {str(e)}")
                 continue
 
@@ -282,8 +291,17 @@ class TwitterDownloader(BaseDownloader):
                 continue
 
         if last_error:
-            if 'No video content found' in str(last_error) and not cookie_file:
-                raise Exception("Could not download Twitter/X video after multiple configuration attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
+            if 'No video content found' in str(last_error):
+                if cookie_file:
+                    self.emit_progress({
+                        'status': 'cookie_error',
+                        'message': 'Twitter cookies are invalid or expired. Please refresh your cookies to continue downloading.',
+                        'progress': 0,
+                        'platform': 'twitter'
+                    })
+                    raise Exception("Could not download Twitter/X video after multiple configuration attempts: Twitter cookies are invalid or expired. Please refresh your cookies.")
+                else:
+                    raise Exception("Could not download Twitter/X video after multiple configuration attempts: No video content found in this tweet. It may require login. Set TWITTER_COOKIES_FILE and retry.")
             raise Exception(f"Could not download Twitter/X video after multiple configuration attempts: {str(last_error)}")
     
     def _get_available_formats(self, info: Dict) -> list:

@@ -151,21 +151,43 @@ class YouTubeDownloader(BaseDownloader):
         configs: List[Dict[str, Any]] = []
 
         if cookie_path:
+            # Primary: Cookie-based configuration with optimal settings
             cookie_cfg = dict(common_opts)
             if for_info:
                 cookie_cfg['skip_download'] = True
             else:
-                cookie_cfg['format'] = 'best'
+                cookie_cfg['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
             cookie_cfg.update({
                 'cookiefile': str(cookie_path),
                 'cookiefile_out': None,
                 'nocheckcertificate': True,
+                'sleep_interval_requests': 1,
+                'sleep_interval': 1,
+                'retries': 2,
+                'extractor_retries': 2,
             })
             # Use a stable desktop UA that matches typical cookie exports
             cookie_user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
             cookie_cfg['user_agent'] = cookie_user_agent
             cookie_cfg['http_headers'] = {**base_headers, 'User-Agent': cookie_user_agent}
             configs.append(cookie_cfg)
+            
+            # Fallback cookie configuration with different format selection
+            cookie_cfg2 = dict(common_opts)
+            if for_info:
+                cookie_cfg2['skip_download'] = True
+            else:
+                cookie_cfg2['format'] = 'best[height<=1080]/best'
+            cookie_cfg2.update({
+                'cookiefile': str(cookie_path),
+                'cookiefile_out': None,
+                'nocheckcertificate': True,
+                'sleep_interval_requests': 2,
+                'sleep_interval': 2,
+            })
+            cookie_cfg2['user_agent'] = cookie_user_agent
+            cookie_cfg2['http_headers'] = {**base_headers, 'User-Agent': cookie_user_agent}
+            configs.append(cookie_cfg2)
 
         configs.append(build_config('best', random.choice(self.user_agents)))
 
@@ -204,11 +226,24 @@ class YouTubeDownloader(BaseDownloader):
         
         for i, ydl_opts in enumerate(configs):
             try:
-                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}/{config_count}'
+                if 'cookiefile' in ydl_opts:
+                    if i == 0:
+                        config_name = "Cookie Authentication (Primary)"
+                        progress_value = 10
+                    elif i == 1:
+                        config_name = "Cookie Authentication (Fallback)"
+                        progress_value = 20
+                    else:
+                        config_name = f"Cookie Authentication ({i})"
+                        progress_value = 10 + (i * 5)
+                else:
+                    config_name = f'Configuration {i+1}/{config_count}'
+                    progress_value = 40 + (i * 10)
+                
                 self.emit_progress({
                     'status': 'info',
                     'message': f'Trying {config_name}...',
-                    'progress': 10
+                    'progress': progress_value
                 })
                 
                 loop = asyncio.get_event_loop()
@@ -238,23 +273,36 @@ class YouTubeDownloader(BaseDownloader):
                 config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in ydl_opts else f'Configuration {i+1}'
                 
                 if "Sign in to confirm you're not a bot" in str(e):
-                    if i == 0:  # Cookie authentication failed
-                        self.emit_progress({
-                            'status': 'warning',
-                            'message': 'Cookie authentication failed, trying fallback methods...',
-                            'progress': 20
-                        })
+                    if 'cookiefile' in ydl_opts:
+                        if i == 0:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': 'Primary cookie authentication failed, trying fallback cookie method...',
+                                'progress': 25
+                            })
+                        elif i == 1:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': 'Fallback cookie authentication failed, trying non-cookie methods...',
+                                'progress': 35
+                            })
+                        else:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': f'{config_name} blocked by YouTube, trying next...',
+                                'progress': 40 + (i * 10)
+                            })
                     else:
                         self.emit_progress({
                             'status': 'warning',
                             'message': f'{config_name} blocked by YouTube, trying next...',
-                            'progress': 20 + (i * 20)
+                            'progress': 40 + (i * 10)
                         })
                 else:
                     self.emit_progress({
                         'status': 'warning',
                         'message': f'{config_name} failed: {str(e)}',
-                        'progress': 20 + (i * 20)
+                        'progress': progress_value + 10
                     })
                 
                 # Wait before trying next configuration
@@ -262,12 +310,28 @@ class YouTubeDownloader(BaseDownloader):
                     await asyncio.sleep(2)
         
         # All configurations failed
-        error_msg = "YouTube is requiring authentication or all configurations failed. Please try again later or use a different video platform."
-        self.emit_progress({
-            'status': 'error',
-            'message': error_msg,
-            'progress': 0
-        })
+        # Check if it's specifically a cookie failure
+        cookie_failed = False
+        for i, config in enumerate(configs):
+            if 'cookiefile' in config:
+                cookie_failed = True
+                break
+        
+        if cookie_failed:
+            error_msg = "YouTube cookies are invalid or expired. Please refresh your cookies to continue downloading."
+            self.emit_progress({
+                'status': 'cookie_error',
+                'message': error_msg,
+                'progress': 0,
+                'platform': 'youtube'
+            })
+        else:
+            error_msg = "YouTube is requiring authentication or all configurations failed. Please try again later or use a different video platform."
+            self.emit_progress({
+                'status': 'error',
+                'message': error_msg,
+                'progress': 0
+            })
         raise Exception(error_msg)
     
     async def download(self, url: str, format_id: str = 'best',
@@ -333,11 +397,24 @@ class YouTubeDownloader(BaseDownloader):
 
         for i, base_opts in enumerate(configs):
             try:
-                config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}/{config_count}'
+                if 'cookiefile' in base_opts:
+                    if i == 0:
+                        config_name = "Cookie Authentication (Primary)"
+                        progress_value = 5
+                    elif i == 1:
+                        config_name = "Cookie Authentication (Fallback)"
+                        progress_value = 15
+                    else:
+                        config_name = f"Cookie Authentication ({i})"
+                        progress_value = 5 + (i * 5)
+                else:
+                    config_name = f'Download Configuration {i}/{config_count}'
+                    progress_value = 30 + (i * 10)
+                
                 self.emit_progress({
                     'status': 'info',
                     'message': f'Trying {config_name}...',
-                    'progress': 5
+                    'progress': progress_value
                 })
                 
                 ydl_opts = {
@@ -349,7 +426,7 @@ class YouTubeDownloader(BaseDownloader):
                     'postprocessors': [{
                         'key': 'FFmpegVideoConvertor',
                         'preferedformat': 'mp4',
-                    }] if format_id != 'best' else []
+                    }]
                 }
                 
                 # If trimming is needed, we'll post-process
@@ -498,30 +575,57 @@ class YouTubeDownloader(BaseDownloader):
                             logger.error(f"Download failed with exception: {str(e)}")
                             raise
                     
-                    return await loop.run_in_executor(None, download_video)
+                    downloaded_file = await loop.run_in_executor(None, download_video)
+                    
+                    # Ensure MP4 compatibility for direct downloads
+                    if downloaded_file.exists() and downloaded_file.stat().st_size > 0:
+                        mp4_compatible_path = output_path.parent / f"{output_path.stem}_compatible.mp4"
+                        processor = VideoProcessor()
+                        final_path = await processor.ensure_mp4_compatibility(downloaded_file, mp4_compatible_path)
+                        
+                        # Clean up original if different
+                        if final_path != downloaded_file:
+                            asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
+                        
+                        return final_path
+                    
+                    return downloaded_file
                     
             except Exception as e:
                 last_error = e
                 config_name = "Cookie Authentication" if i == 0 and 'cookiefile' in base_opts else f'Download Configuration {i+1}'
                 
                 if "Sign in to confirm you're not a bot" in str(e):
-                    if i == 0:  # Cookie authentication failed
-                        self.emit_progress({
-                            'status': 'warning',
-                            'message': 'Cookie authentication failed, trying fallback methods...',
-                            'progress': 10
-                        })
+                    if 'cookiefile' in base_opts:
+                        if i == 0:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': 'Primary cookie authentication failed, trying fallback cookie method...',
+                                'progress': 10
+                            })
+                        elif i == 1:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': 'Fallback cookie authentication failed, trying non-cookie methods...',
+                                'progress': 20
+                            })
+                        else:
+                            self.emit_progress({
+                                'status': 'warning',
+                                'message': f'{config_name} blocked by YouTube, trying next...',
+                                'progress': 25 + (i * 5)
+                            })
                     else:
                         self.emit_progress({
                             'status': 'warning',
-                            'message': f'{config_name} blocked, trying next...',
-                            'progress': 10 + (i * 5)
+                            'message': f'{config_name} blocked by YouTube, trying next...',
+                            'progress': 25 + (i * 5)
                         })
                 else:
                     self.emit_progress({
                         'status': 'warning',
                         'message': f'{config_name} failed: {str(e)}',
-                        'progress': 10 + (i * 5)
+                        'progress': progress_value + 5
                     })
                 
                 # Wait before trying next configuration
@@ -529,12 +633,28 @@ class YouTubeDownloader(BaseDownloader):
                     await asyncio.sleep(2)
         
         # All configurations failed
-        error_msg = "YouTube download failed due to authentication or network issues. Please try again later."
-        self.emit_progress({
-            'status': 'error',
-            'message': error_msg,
-            'progress': 0
-        })
+        # Check if it's specifically a cookie failure
+        cookie_failed = False
+        for i, config in enumerate(configs):
+            if 'cookiefile' in config:
+                cookie_failed = True
+                break
+        
+        if cookie_failed:
+            error_msg = "YouTube cookies are invalid or expired. Please refresh your cookies to continue downloading."
+            self.emit_progress({
+                'status': 'cookie_error',
+                'message': error_msg,
+                'progress': 0,
+                'platform': 'youtube'
+            })
+        else:
+            error_msg = "YouTube download failed due to authentication or network issues. Please try again later."
+            self.emit_progress({
+                'status': 'error',
+                'message': error_msg,
+                'progress': 0
+            })
         raise Exception(error_msg)
     
     def _get_available_formats(self, info: Dict) -> list:
@@ -592,7 +712,7 @@ class YouTubeDownloader(BaseDownloader):
     def _get_format_string(self, format_id: str) -> str:
         """Get yt-dlp format string from format ID"""
         format_map = {
-            'best': 'bestvideo+bestaudio/best',
+            'best': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
             '137': '137+140',  # 1080p mp4
             '136': '136+140',  # 720p mp4
             '135': '135+140',  # 480p mp4

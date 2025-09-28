@@ -122,7 +122,7 @@ class FacebookDownloader(BaseDownloader):
         # Normalize default format to capture audio + video when possible
         normalized_format = format_id
         if normalized_format == 'best':
-            normalized_format = 'bestvideo+bestaudio/best'
+            normalized_format = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best'
 
         # Try multiple download configurations
         download_configs = [
@@ -139,6 +139,10 @@ class FacebookDownloader(BaseDownloader):
                 'sleep_interval': 2,
                 'sleep_interval_requests': 2,
                 'concurrent_fragment_downloads': 3,
+                'postprocessors': [{
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4',
+                }],
             },
             {
                 'format': normalized_format,
@@ -164,7 +168,7 @@ class FacebookDownloader(BaseDownloader):
                 'concurrent_fragment_downloads': 3,
             },
             {
-                'format': 'best[ext=mp4]/best',
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
                 'quiet': True,
                 'no_warnings': True,
@@ -179,6 +183,10 @@ class FacebookDownloader(BaseDownloader):
                 'sleep_interval': 3,
                 'sleep_interval_requests': 3,
                 'concurrent_fragment_downloads': 1,
+                'postprocessors': [{
+                    'key': 'FFmpegVideoConvertor',
+                    'preferedformat': 'mp4',
+                }],
             }
         ]
         
@@ -379,7 +387,16 @@ class FacebookDownloader(BaseDownloader):
                     if downloaded_file.stat().st_size <= 1024:
                         raise ValueError("Facebook direct download resulted in an empty file")
 
-                    return downloaded_file
+                    # Ensure MP4 compatibility
+                    mp4_compatible_path = output_path.parent / f"{output_path.stem}_compatible.mp4"
+                    processor = VideoProcessor()
+                    final_path = await processor.ensure_mp4_compatibility(downloaded_file, mp4_compatible_path)
+                    
+                    # Clean up original if different
+                    if final_path != downloaded_file:
+                        asyncio.create_task(self.cleanup_file(downloaded_file, delay=1))
+                    
+                    return final_path
                     
             except Exception as e:
                 last_error = e
