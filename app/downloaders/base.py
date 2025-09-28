@@ -182,7 +182,8 @@ class BaseDownloader(ABC):
         
         return False
     
-    async def verify_and_retry_download(self, url: str, ydl_opts: dict, max_retries: int = 3) -> Path:
+    async def verify_and_retry_download(self, url: str, ydl_opts: dict, max_retries: int = 3,
+                                        apply_common_opts: bool = True) -> Path:
         """Download with verification and automatic retry"""
         import tempfile
         import time
@@ -204,7 +205,9 @@ class BaseDownloader(ABC):
                     pass
             
             # Update output template for this attempt
-            attempt_opts = self._apply_common_ydl_options(ydl_opts.copy())
+            attempt_opts = ydl_opts.copy()
+            if apply_common_opts:
+                attempt_opts = self._apply_common_ydl_options(attempt_opts)
             attempt_opts['outtmpl'] = str(temp_path.parent / f"{stem}.%(ext)s")
             attempt_opts.setdefault('overwrites', True)
             

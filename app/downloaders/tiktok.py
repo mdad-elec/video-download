@@ -73,38 +73,20 @@ class TikTokDownloader(BaseDownloader):
         ydl_opts = {
             'format': format_id,
             'outtmpl': str(output_path.parent / f"{output_path.stem}.%(ext)s"),
-            'quiet': False,  # Enable for better debugging
+            'quiet': False,
             'no_warnings': False,
-            'retries': 10,  # Increased retries
-            'fragment_retries': 10,
-            'file_access_retries': 10,
-            'extractor_retries': 10,
-            'sleep_interval': 3,
-            'sleep_interval_requests': 3,
-            'concurrent_fragment_downloads': 4,
+            'noplaylist': True,
+            'cachedir': False,
+            'retries': 5,
+            'fragment_retries': 5,
+            'file_access_retries': 5,
+            'extractor_retries': 3,
+            'sleep_interval': 2,
+            'sleep_interval_requests': 2,
             'timeout': 60,
             'socket_timeout': 60,
-            'http_chunk_size': 10485760,  # 10MB chunks
-            'buffersize': 1048576,  # 1MB buffer
-            'nopart': False,  # Use partial files
-            'nocheckcertificate': True,  # Skip cert validation for some platforms
-            # TikTok specific options with multiple user agents
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Referer': 'https://www.tiktok.com/',
-                'Origin': 'https://www.tiktok.com',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'same-origin',
-                'Sec-Fetch-User': '?1',
-                'Cache-Control': 'max-age=0',
-            }
+            'merge_output_format': 'mp4',
+            'prefer_ffmpeg': True,
         }
 
         if cookie_file:
@@ -114,7 +96,12 @@ class TikTokDownloader(BaseDownloader):
         
         # Use the robust download method with retry mechanism
         try:
-            downloaded_file = await self.verify_and_retry_download(url, ydl_opts, max_retries=3)
+            downloaded_file = await self.verify_and_retry_download(
+                url,
+                ydl_opts,
+                max_retries=3,
+                apply_common_opts=False
+            )
             
             if start_time is not None or end_time is not None:
                 # Trim video if needed
