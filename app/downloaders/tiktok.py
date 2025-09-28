@@ -88,11 +88,6 @@ class TikTokDownloader(BaseDownloader):
             'buffersize': 1048576,  # 1MB buffer
             'nopart': False,  # Use partial files
             'nocheckcertificate': True,  # Skip cert validation for some platforms
-            'extractor_args': {
-                'tiktok': {
-                    'api_hostname': 'api16-normal-c-useast1a.tiktokv.com',
-                }
-            },
             # TikTok specific options with multiple user agents
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
@@ -114,7 +109,6 @@ class TikTokDownloader(BaseDownloader):
 
         if cookie_file:
             ydl_opts['cookiefile'] = str(cookie_file)
-            ydl_opts.setdefault('extractor_args', {}).setdefault('tiktok', {}).setdefault('cookies', {})
 
         loop = asyncio.get_event_loop()
         
