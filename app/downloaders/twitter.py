@@ -10,21 +10,22 @@ from ..utils.logger import logger
 
 class TwitterDownloader(BaseDownloader):
     
-    def _extract_twitter_url(self, url: str) -> str:
-        """Extract and normalize Twitter/X URL"""
-        # Handle various Twitter URL formats
+    def _extract_tweet_id(self, url: str) -> Optional[str]:
         patterns = [
             r'twitter\.com/.*/status/(\d+)',
             r'x\.com/.*/status/(\d+)',
             r'mobile\.twitter\.com/.*/status/(\d+)'
         ]
-        
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
-                tweet_id = match.group(1)
-                return f'https://twitter.com/i/web/status/{tweet_id}'
-        
+                return match.group(1)
+        return None
+
+    def _extract_twitter_url(self, url: str) -> str:
+        tweet_id = self._extract_tweet_id(url)
+        if tweet_id:
+            return f'https://twitter.com/i/web/status/{tweet_id}'
         return url
     
     def _select_video_entry(self, info: Optional[Dict[str, Any]], tweet_id: Optional[str] = None):
