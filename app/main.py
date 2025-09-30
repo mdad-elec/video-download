@@ -259,7 +259,11 @@ async def get_video_info(
         logger.error(f"Unexpected error getting video info: {error_msg}")
         
         # Provide more user-friendly error messages
-        if "Could not fetch" in error_msg and "after multiple attempts" in error_msg:
+        normalized = error_msg.lower()
+
+        if "cookie" in normalized or "sign in to confirm" in normalized:
+            detail = "This platform requires fresh cookies. Please update your cookies and try again."
+        elif "could not fetch" in error_msg and "after multiple attempts" in error_msg:
             detail = f"Unable to retrieve video information from {platform}. This may be due to platform restrictions or the video being private/unavailable."
         elif "No video content found" in error_msg:
             detail = "This URL doesn't contain any video content or the video is no longer available."

@@ -59,6 +59,12 @@ class FacebookDownloader(BaseDownloader):
                     logger.info(f"Resolved Facebook share link via login redirect to {decoded_next}")
                     return self._resolve_share_link(decoded_next, depth + 1)
 
+                share_url = query_params.get('share_url')
+                if share_url:
+                    decoded_share = unquote(share_url)
+                    logger.info(f"Resolved Facebook share link via share_url param to {decoded_share}")
+                    return self._resolve_share_link(decoded_share, depth + 1)
+
                 # Try parsing canonical URL from the login HTML (og:url)
                 canonical = self._extract_canonical_from_html(response.text)
                 if canonical:
@@ -69,7 +75,7 @@ class FacebookDownloader(BaseDownloader):
                 story_fbid = query_params.get('story_fbid')
                 page_id = query_params.get('id')
                 if story_fbid and page_id:
-                    story_url = f'https://www.facebook.com/story.php?story_fbid={story_fbid}&id={page_id}'
+                    story_url = f'https://mbasic.facebook.com/story.php?story_fbid={story_fbid}&id={page_id}'
                     logger.info(f"Constructed Facebook story URL {story_url} from login redirect parameters")
                     return self._resolve_share_link(story_url, depth + 1)
 
