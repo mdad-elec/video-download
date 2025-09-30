@@ -192,6 +192,7 @@ class VideoDownloader {
             
         } catch (error) {
             this.showError(error.message);
+            this.handleCookieRelatedError(platform, error.message);
         } finally {
             // Reset button state
             getInfoBtn.disabled = false;
@@ -346,6 +347,7 @@ class VideoDownloader {
             
         } catch (error) {
             this.showError(error.message);
+            this.handleCookieRelatedError(platform, error.message);
         } finally {
             this.isDownloading = false;
             this.hideProgress();
@@ -667,6 +669,31 @@ class VideoDownloader {
                 setTimeout(() => notification.remove(), 300);
             }
         }, 15000);
+    }
+
+    handleCookieRelatedError(platform, message) {
+        if (!platform) {
+            return;
+        }
+
+        const normalized = (message || '').toLowerCase();
+        const triggers = [
+            'cookie',
+            "sign in to confirm you're not a bot",
+            'sign in to confirm you’re not a bot',
+            'requires authentication',
+            'authentication or all configurations failed'
+        ];
+
+        const hasCookieIssue = triggers.some((phrase) => normalized.includes(phrase.toLowerCase()));
+
+        if (hasCookieIssue) {
+            this.showCookieErrorNotification(platform, message || 'This platform needs updated cookies to continue.');
+            // Auto-open the help modal so the user can act immediately.
+            setTimeout(() => {
+                this.showCookieHelp(platform);
+            }, 300);
+        }
     }
     
     showCookieHelp(platform) {

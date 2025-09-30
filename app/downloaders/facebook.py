@@ -5,7 +5,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Dict, Any
-from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode, unquote
 
 import httpx
 
@@ -15,30 +15,90 @@ from ..utils.logger import logger
 
 class FacebookDownloader(BaseDownloader):
     
-    def _resolve_share_link(self, url: str) -> str:
+    def _resolve_share_link(self, url: str, depth: int = 0) -> str:
         """Follow Facebook share links to their canonical destination."""
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-        }
+        if depth > 4 or not url:
+            return url
 
-        try:
-            response = httpx.get(
-                url,
-                headers=headers,
-                follow_redirects=True,
-                timeout=httpx.Timeout(6.0, connect=4.0)
-            )
-            if 200 <= response.status_code < 400:
-                resolved = str(response.url)
-                if resolved != url:
-                    logger.info(f"Resolved Facebook share link to {resolved}")
-                return resolved
-        except Exception as exc:
-            logger.debug(f"Failed to resolve Facebook share link {url}: {exc}")
+        header_sets = [
+            {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            },
+            {
+                # Facebook crawler user-agent often receives canonical URLs without login prompts
+                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+        ]
+
+        for headers in header_sets:
+            try:
+                response = httpx.get(
+                    url,
+                    headers=headers,
+                    follow_redirects=True,
+                    timeout=httpx.Timeout(8.0, connect=5.0)
+                )
+            except Exception as exc:
+                logger.debug(f"Failed to resolve Facebook share link {url} with headers {headers.get('User-Agent')}: {exc}")
+                continue
+
+            final_url = str(response.url)
+
+            # If Facebook redirected us to login, attempt to extract the intended destination
+            if 'facebook.com/login' in final_url:
+                parsed = urlsplit(final_url)
+                query_params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+                next_url = query_params.get('next')
+                if next_url:
+                    decoded_next = unquote(next_url)
+                    logger.info(f"Resolved Facebook share link via login redirect to {decoded_next}")
+                    return self._resolve_share_link(decoded_next, depth + 1)
+
+                # Try parsing canonical URL from the login HTML (og:url)
+                canonical = self._extract_canonical_from_html(response.text)
+                if canonical:
+                    logger.info(f"Resolved Facebook share link via canonical meta to {canonical}")
+                    return canonical
+
+                # As a final fallback, if story parameters exist build a story URL
+                story_fbid = query_params.get('story_fbid')
+                page_id = query_params.get('id')
+                if story_fbid and page_id:
+                    story_url = f'https://www.facebook.com/story.php?story_fbid={story_fbid}&id={page_id}'
+                    logger.info(f"Constructed Facebook story URL {story_url} from login redirect parameters")
+                    return self._resolve_share_link(story_url, depth + 1)
+
+                continue
+
+            if final_url.rstrip('/') != url.rstrip('/'):
+                logger.info(f"Resolved Facebook share link to {final_url}")
+            return final_url
 
         return url
+
+    def _extract_canonical_from_html(self, html: str) -> Optional[str]:
+        if not html:
+            return None
+
+        # Common canonical markers
+        patterns = [
+            r"property=['\"]og:url['\"]\s+content=['\"]([^'\"]+)",
+            r"<meta\s+content=['\"]([^'\"]+)['\"]\s+property=['\"]al:android:url['\"]",
+            r'data-ploi="([^"]+)"'
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, html, flags=re.IGNORECASE)
+            if match:
+                candidate = match.group(1)
+                if candidate:
+                    return candidate
+        return None
 
     def _extract_facebook_url(self, url: str) -> str:
         """Normalize Facebook URLs from various formats (share, watch, videos, etc.)."""
