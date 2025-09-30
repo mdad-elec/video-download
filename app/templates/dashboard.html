@@ -85,8 +85,9 @@
                 </div>
                 
                 <div class="preview-actions">
-                    <button class="btn-primary" onclick="downloadVideo()">
-                        <i class="fas fa-download"></i> Download Now
+                    <button id="downloadBtn" class="btn-primary" onclick="downloadVideo()" disabled>
+                        <i class="fas fa-download"></i>
+                        <span id="downloadBtnText">Get Video Info First</span>
                     </button>
                     <button class="btn-secondary" onclick="clearVideo()">
                         <i class="fas fa-times"></i> Clear

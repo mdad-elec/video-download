@@ -8,38 +8,50 @@ class VideoProcessor:
     async def trim_video(self, input_path: Path, output_path: Path,
                         start_time: Optional[float] = None,
                         end_time: Optional[float] = None) -> Path:
-        """Trim video using ffmpeg"""
-        
+        """Trim video using ffmpeg with stream copy when possible."""
+
         loop = asyncio.get_event_loop()
-        
-        def process():
-            input_stream = ffmpeg.input(str(input_path))
-            
-            # Apply trimming
-            if start_time is not None and end_time is not None:
-                duration = end_time - start_time
-                stream = input_stream.trim(start=start_time, duration=duration)
-            elif start_time is not None:
-                stream = input_stream.trim(start=start_time)
-            elif end_time is not None:
-                stream = input_stream.trim(end=end_time)
-            else:
-                stream = input_stream
-            
-            # Reset timestamps
-            stream = stream.setpts('PTS-STARTPTS')
-            
-            # Output with fast encoding
-            stream = ffmpeg.output(
-                stream,
-                str(output_path),
-                codec='copy',  # Copy codec for speed
-                avoid_negative_ts='make_zero'
+
+        def process() -> Path:
+            start = float(start_time) if start_time is not None else None
+            end = float(end_time) if end_time is not None else None
+
+            if start is not None and start < 0:
+                start = 0.0
+
+            if end is not None and end < 0:
+                end = 0.0
+
+            if start is not None and end is not None and end <= start:
+                raise ValueError("Trim end time must be greater than start time.")
+
+            input_kwargs = {}
+            if start is not None:
+                input_kwargs['ss'] = round(start, 3)
+
+            stream = ffmpeg.input(str(input_path), **input_kwargs)
+
+            output_kwargs = {
+                'c': 'copy',
+                'movflags': '+faststart',
+                'avoid_negative_ts': 'make_zero'
+            }
+
+            if end is not None:
+                effective_start = start or 0.0
+                duration = end - effective_start
+                if duration <= 0:
+                    raise ValueError("Trim duration must be greater than zero.")
+                output_kwargs['t'] = round(duration, 3)
+
+            ffmpeg.run(
+                ffmpeg.output(stream, str(output_path), **output_kwargs),
+                overwrite_output=True,
+                quiet=True
             )
-            
-            ffmpeg.run(stream, overwrite_output=True, quiet=True)
+
             return output_path
-        
+
         return await loop.run_in_executor(None, process)
     
     async def get_video_duration(self, filepath: Path) -> float:
