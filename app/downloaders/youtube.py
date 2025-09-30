@@ -51,7 +51,8 @@ class YouTubeDownloader(BaseDownloader):
                 candidates.append((root / rel).expanduser())
 
         seen: set[Path] = set()
-        valid_cookies = []
+        fresh_cookies = []
+        stale_cookies = []
         
         for candidate in candidates:
             expanded = candidate.expanduser()
@@ -65,25 +66,37 @@ class YouTubeDownloader(BaseDownloader):
             seen.add(resolved)
 
             if resolved.is_file():
-                # Check if cookies file has content and is recent
                 try:
-                    file_size = resolved.stat().st_size
-                    file_mtime = resolved.stat().st_mtime
+                    file_stat = resolved.stat()
+                    file_size = file_stat.st_size
+                    file_mtime = file_stat.st_mtime
                     current_time = time.time()
-                    
-                    # Only use cookies files that have content and are less than 24 hours old
-                    if file_size > 100 and (current_time - file_mtime) < 86400:  # 24 hours
-                        valid_cookies.append(resolved)
-                        logger.info(f"Found valid YouTube cookies file at {resolved} (size: {file_size} bytes)")
+
+                    if file_size <= 100:
+                        logger.warning(f"Found YouTube cookies file with insufficient data at {resolved} (size: {file_size} bytes)")
+                        continue
+
+                    age_hours = (current_time - file_mtime) / 3600
+
+                    # Treat files updated within 48 hours as fresh. Older ones may still work, so keep as fallback.
+                    if age_hours <= 48:
+                        fresh_cookies.append(resolved)
+                        logger.info(f"Found fresh YouTube cookies file at {resolved} (age: {age_hours:.1f}h, size: {file_size} bytes)")
+                    elif age_hours <= 24 * 30:  # allow up to ~30 days as fallback
+                        stale_cookies.append(resolved)
+                        logger.warning(f"Found stale YouTube cookies file at {resolved} (age: {age_hours:.1f}h). Will use as fallback if no fresh cookies are available.")
                     else:
-                        logger.warning(f"Found expired or empty cookies file at {resolved} (size: {file_size} bytes)")
+                        logger.warning(f"Ignoring very old YouTube cookies file at {resolved} (age: {age_hours:.1f}h)")
                 except Exception as e:
                     logger.warning(f"Error checking cookies file {resolved}: {e}")
 
-        if valid_cookies:
-            # Return the most recent valid cookies file
-            best_cookie = max(valid_cookies, key=lambda p: p.stat().st_mtime)
-            logger.info(f"Using most recent YouTube cookies file: {best_cookie}")
+        cookie_pool = fresh_cookies or stale_cookies
+
+        if cookie_pool:
+            best_cookie = max(cookie_pool, key=lambda p: p.stat().st_mtime)
+            if best_cookie in stale_cookies and not fresh_cookies:
+                logger.warning("Using fallback stale YouTube cookies file; consider refreshing cookies soon.")
+            logger.info(f"Using YouTube cookies file located at {best_cookie}")
             return best_cookie
 
         logger.debug("No valid YouTube cookies file could be located; falling back to anonymous requests.")

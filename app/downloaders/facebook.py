@@ -5,33 +5,100 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Dict, Any
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
+import httpx
+
 from .base import BaseDownloader
 from ..utils.video_processor import VideoProcessor
 from ..utils.logger import logger
 
 class FacebookDownloader(BaseDownloader):
     
+    def _resolve_share_link(self, url: str) -> str:
+        """Follow Facebook share links to their canonical destination."""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+        }
+
+        try:
+            response = httpx.get(
+                url,
+                headers=headers,
+                follow_redirects=True,
+                timeout=httpx.Timeout(6.0, connect=4.0)
+            )
+            if 200 <= response.status_code < 400:
+                resolved = str(response.url)
+                if resolved != url:
+                    logger.info(f"Resolved Facebook share link to {resolved}")
+                return resolved
+        except Exception as exc:
+            logger.debug(f"Failed to resolve Facebook share link {url}: {exc}")
+
+        return url
+
     def _extract_facebook_url(self, url: str) -> str:
-        """Extract proper Facebook URL from various formats"""
+        """Normalize Facebook URLs from various formats (share, watch, videos, etc.)."""
+        if not url:
+            return url
+
+        clean_url = url.strip()
+
+        # Auto-prefix scheme if missing
+        if clean_url.startswith('facebook.com'):
+            clean_url = f'https://{clean_url}'
+
+        # Resolve share links that redirect to canonical URLs
+        if 'facebook.com/share/' in clean_url:
+            clean_url = self._resolve_share_link(clean_url)
+
+        # Ensure we operate on standard host to simplify downstream handling
+        clean_url = clean_url.replace('m.facebook.com', 'www.facebook.com')
+        clean_url = clean_url.replace('mbasic.facebook.com', 'www.facebook.com')
+
+        # Remove query params that embed duplicate URLs (e.g., rdid)
+        try:
+            split = urlsplit(clean_url)
+            if 'facebook.com' in split.netloc:
+                filtered_query = [
+                    (key, value)
+                    for key, value in parse_qsl(split.query, keep_blank_values=True)
+                    if key.lower() not in {'rdid'}
+                ]
+                clean_url = urlunsplit((
+                    split.scheme or 'https',
+                    split.netloc,
+                    split.path,
+                    urlencode(filtered_query, doseq=True),
+                    split.fragment
+                ))
+        except Exception as exc:
+            logger.debug(f"Failed to normalize Facebook query string for {clean_url}: {exc}")
+
         # Handle facebook.com/watch/ URLs
-        if 'facebook.com/watch/' in url:
-            match = re.search(r'facebook\.com/watch/.*[/?&]v=(\d+)', url)
+        if 'facebook.com/watch/' in clean_url:
+            match = re.search(r'facebook\.com/watch/.*[/?&]v=(\d+)', clean_url)
             if match:
                 return f'https://www.facebook.com/watch/?v={match.group(1)}'
-        
-        # Handle facebook.com/videos/ URLs
-        if 'facebook.com/videos/' in url:
-            # Extract video ID from path
-            match = re.search(r'facebook\.com/videos/([^/?&]+)', url)
+
+        # Handle facebook.com/video(s)/ URLs
+        if 'facebook.com/video.php' in clean_url:
+            return clean_url
+
+        if 'facebook.com/videos/' in clean_url:
+            match = re.search(r'facebook\.com/videos/(\d+)', clean_url)
             if match:
                 return f'https://www.facebook.com/video.php?v={match.group(1)}'
-        
-        # Handle fb.watch URLs
-        if 'fb.watch/' in url:
-            return url
-        
-        # Default: return original URL
-        return url
+
+        # Handle fb.watch short URLs
+        if 'fb.watch/' in clean_url:
+            return clean_url
+
+        # Default: return normalized URL
+        return clean_url
     
     async def get_video_info(self, url: str) -> Dict[str, Any]:
         """Get Facebook video metadata"""
