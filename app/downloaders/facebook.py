@@ -20,6 +20,12 @@ class FacebookDownloader(BaseDownloader):
         if depth > 4 or not url:
             return url
 
+        # First try Facebook's oEmbed endpoint which often returns the canonical public URL
+        oembed_url = self._resolve_via_oembed(url)
+        if oembed_url and oembed_url != url:
+            logger.info(f"Resolved Facebook share link via oEmbed to {oembed_url}")
+            return oembed_url
+
         header_sets = [
             {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -75,7 +81,7 @@ class FacebookDownloader(BaseDownloader):
                 story_fbid = query_params.get('story_fbid')
                 page_id = query_params.get('id')
                 if story_fbid and page_id:
-                    story_url = f'https://mbasic.facebook.com/story.php?story_fbid={story_fbid}&id={page_id}'
+                    story_url = self._construct_story_url(page_id, story_fbid)
                     logger.info(f"Constructed Facebook story URL {story_url} from login redirect parameters")
                     return self._resolve_share_link(story_url, depth + 1)
 
@@ -86,6 +92,34 @@ class FacebookDownloader(BaseDownloader):
             return final_url
 
         return url
+
+    def _resolve_via_oembed(self, url: str) -> Optional[str]:
+        try:
+            response = httpx.get(
+                'https://www.facebook.com/plugins/video/oembed.json/',
+                params={'url': url, 'omitscript': 'true'},
+                headers={
+                    'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                    'Accept': 'application/json'
+                },
+                timeout=httpx.Timeout(6.0, connect=4.0)
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict):
+                    candidate = data.get('url')
+                    if candidate:
+                        return candidate
+
+                    html_snippet = data.get('html')
+                    if isinstance(html_snippet, str):
+                        href_match = re.search(r'data-href="([^"]+)"', html_snippet)
+                        if href_match:
+                            return href_match.group(1)
+        except Exception as exc:
+            logger.debug(f"oEmbed resolution failed for {url}: {exc}")
+
+        return None
 
     def _extract_canonical_from_html(self, html: str) -> Optional[str]:
         if not html:
@@ -105,6 +139,16 @@ class FacebookDownloader(BaseDownloader):
                 if candidate:
                     return candidate
         return None
+
+    def _construct_story_url(self, page_id: str, story_fbid: str) -> str:
+        # Prefer the lighter mobile site which usually works without login
+        base_story = f'https://mbasic.facebook.com/story.php?story_fbid={story_fbid}&id={page_id}'
+
+        # Also try constructing a posts permalink that yt-dlp can handle well
+        posts_url = f'https://www.facebook.com/{page_id}/posts/{story_fbid}'
+
+        # Return the posts URL; yt-dlp handles it better, but keep base_story accessible for fallback resolution
+        return posts_url
 
     def _extract_facebook_url(self, url: str) -> str:
         """Normalize Facebook URLs from various formats (share, watch, videos, etc.)."""
